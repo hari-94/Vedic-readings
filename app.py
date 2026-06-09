@@ -13,6 +13,10 @@ from engine import (
     DASHA_ORDER, DASHA_YEARS, NAK_DEITIES, NAK_SYMBOLS,
     SIGN_LORDS, SIGN_ELEMENT, SIGN_QUALITY,
 )
+from panchang import (
+    get_kalam_times, get_abhijit, get_today_moon, moon_effect_on_rasi,
+    get_chandrashtama_days, get_good_windows, get_weekly_overview,
+)
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -199,7 +203,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
     tabs = st.tabs([
         "🌟 Overview", "🪐 Planets", "🏠 Houses",
         "⏳ Dasha", "💼 Career", "💞 Relationships",
-        "⚖️ Yogas", "🧿 Remedies", "📊 Summary"
+        "⚖️ Yogas", "🧿 Remedies", "📅 Panchang", "📊 Summary"
     ])
 
     # ── TAB 1: Overview ───────────────────────────────────────────────────────
@@ -471,8 +475,170 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
         ]:
             st.markdown(f'<div class="remedy-item"><div class="rem-num">✦</div><div class="rem-body"><div class="rem-text">{txt}</div></div></div>', unsafe_allow_html=True)
 
-    # ── TAB 9: Summary ────────────────────────────────────────────────────────
+    # ── TAB 9: Panchang & Chandrashtama ──────────────────────────────────────
     with tabs[8]:
+        rasi_idx   = chart['planets']['Moon']['sign_index']
+        lat        = chart['lat']
+        lon_coord  = chart['lon']
+        tz_str     = chart['tz']
+        lagna_lord = chart['lagna_lord']
+        today_dt   = datetime.now()
+        today_date = today_dt.date()
+
+        # ── Today's moon ─────────────────────────────────────────────────────
+        try:
+            tmoon  = get_today_moon(lat, lon_coord, tz_str)
+            effect = moon_effect_on_rasi(tmoon['sign_index'], rasi_idx)
+            q_color = {'good':'#56d364','neutral':'#e3b341','bad':'#f85149'}.get(effect['quality'],'#8b949e')
+            q_bg    = {'good':'#0d2010','neutral':'#1e1600','bad':'#2d1a1a'}.get(effect['quality'],'#161b22')
+
+            st.markdown(f"""
+            <div style="background:{q_bg};border:1px solid {q_color}44;border-left:3px solid {q_color};
+              border-radius:0 12px 12px 0;padding:1rem 1.25rem;margin-bottom:1rem">
+              <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;
+                letter-spacing:.07em;color:{q_color};margin-bottom:.4rem">
+                Today's Moon · {tmoon['time_local'].strftime('%B %d, %Y')}
+              </div>
+              <div style="font-size:1rem;font-weight:600;color:#e6edf3;margin-bottom:.3rem">
+                ☽ Moon in {tmoon['sign']} ({tmoon['sign_tamil']}) · {tmoon['nakshatra']}
+              </div>
+              <div style="font-size:.82rem;color:#c9d1d9;margin-bottom:.4rem">
+                Position {effect['position']} from your Rasi · <b style="color:{q_color}">{effect['name']}</b>
+              </div>
+              <div style="font-size:.8rem;color:#8b949e;line-height:1.6">{effect['desc']}</div>
+            </div>""", unsafe_allow_html=True)
+
+            act_color = q_color
+            acts = effect['activities']
+            act_html = "".join(f'<span style="display:inline-block;font-size:.72rem;padding:2px 9px;margin:2px 3px;border-radius:10px;background:{q_bg};border:1px solid {act_color}44;color:{act_color}">{a}</span>' for a in acts)
+            st.markdown(f'<div style="margin-bottom:1rem">{act_html}</div>', unsafe_allow_html=True)
+
+        except Exception as e:
+            st.warning(f"Could not load today's moon data: {e}")
+
+        # ── Kalam timings ─────────────────────────────────────────────────────
+        sec_title("Today's kalam timings — avoid for new starts")
+        try:
+            kalams   = get_kalam_times(today_date, lat, lon_coord, tz_str)
+            rk_s,rk_e = kalams['rahu_kalam']
+            yg_s,yg_e = kalams['yamagandam']
+            gk_s,gk_e = kalams['gulika_kalam']
+            ab_s,ab_e = get_abhijit(today_date, lat, lon_coord, tz_str)
+            sunrise   = kalams['sunrise']
+            sunset    = kalams['sunset']
+
+            st.markdown(f"""
+            <div class="metric-row">
+              <div class="metric"><div class="metric-val">{sunrise.strftime('%I:%M %p')}</div><div class="metric-lbl">Sunrise</div></div>
+              <div class="metric"><div class="metric-val">{sunset.strftime('%I:%M %p')}</div><div class="metric-lbl">Sunset</div></div>
+              <div class="metric"><div class="metric-val">{kalams['day_lord']}</div><div class="metric-lbl">Day lord</div></div>
+            </div>""", unsafe_allow_html=True)
+
+            kalam_rows = [
+                ('☀️ Abhijit Muhurta',  ab_s,  ab_e,  '#56d364','#0d2010', 'Best time of day — solar noon window, universally auspicious.'),
+                ('☊ Rahu Kalam',        rk_s,  rk_e,  '#f85149','#2d1a1a', 'Avoid starting anything new. Ongoing work is fine.'),
+                ('⚰ Yamagandam',        yg_s,  yg_e,  '#f85149','#2d1a1a', 'Death time of Yama. No new ventures, travel, or money dealings.'),
+                ('♄ Gulika Kalam',      gk_s,  gk_e,  '#e3b341','#1e1600', 'Saturn\'s hour — activities repeat. Avoid loans and funeral rites.'),
+            ]
+            for label, s, e, color, bg, tip in kalam_rows:
+                st.markdown(f"""
+                <div style="background:{bg};border:1px solid {color}33;border-left:3px solid {color};
+                  border-radius:0 8px 8px 0;padding:.65rem 1rem;margin-bottom:.5rem;
+                  display:flex;align-items:center;gap:1rem">
+                  <div style="min-width:160px">
+                    <div style="font-size:.82rem;font-weight:600;color:{color}">{label}</div>
+                    <div style="font-size:.78rem;color:#c9d1d9">{s.strftime('%I:%M %p')} – {e.strftime('%I:%M %p')}</div>
+                  </div>
+                  <div style="font-size:.75rem;color:#8b949e;line-height:1.5">{tip}</div>
+                </div>""", unsafe_allow_html=True)
+        except Exception as e:
+            st.warning(f"Kalam calculation error: {e}")
+
+        # ── Good windows today ────────────────────────────────────────────────
+        sec_title("Best windows today for important activities")
+        try:
+            good = get_good_windows(today_date, lat, lon_coord, tz_str, rasi_idx, lagna_lord)
+            if good:
+                for w in good:
+                    q_c = '#e2c887' if w['quality']=='best' else '#56d364'
+                    q_b = '#2a1f0a' if w['quality']=='best' else '#0d2010'
+                    st.markdown(f"""
+                    <div style="background:{q_b};border:1px solid {q_c}44;border-radius:8px;
+                      padding:.65rem 1rem;margin-bottom:.5rem;display:flex;align-items:center;gap:1rem">
+                      <div style="min-width:140px">
+                        <div style="font-size:.82rem;font-weight:600;color:{q_c}">{w['label']}</div>
+                        <div style="font-size:.78rem;color:#c9d1d9">{w['start'].strftime('%I:%M %p')} – {w['end'].strftime('%I:%M %p')}</div>
+                      </div>
+                      <div style="font-size:.75rem;color:#8b949e;line-height:1.5">{w['reason']}</div>
+                    </div>""", unsafe_allow_html=True)
+            else:
+                warn_box("No strongly auspicious windows found today. Use the Abhijit window for any necessary activities.")
+        except Exception as e:
+            st.warning(f"Good windows error: {e}")
+
+        # ── 14-day weekly overview ────────────────────────────────────────────
+        sec_title("14-day lunar calendar for your Rasi")
+        try:
+            overview = get_weekly_overview(rasi_idx, lat, lon_coord, tz_str)
+            for day in overview:
+                q   = day['quality']
+                col = {'good':'#56d364','neutral':'#e3b341','bad':'#f85149'}.get(q,'#8b949e')
+                bg  = {'good':'#0d2010','neutral':'#1e1600','bad':'#2d1a1a'}.get(q,'#161b22')
+                chandra_badge = '<span style="font-size:.65rem;background:#2d1a1a;color:#f85149;padding:1px 6px;border-radius:8px;margin-left:6px">Chandrashtama</span>' if day['is_chandrashtama'] else ''
+                st.markdown(f"""
+                <div style="background:{bg};border:1px solid {col}33;border-radius:8px;
+                  padding:.55rem 1rem;margin-bottom:.4rem;
+                  display:flex;align-items:center;gap:1rem">
+                  <div style="width:44px;text-align:center;flex-shrink:0">
+                    <div style="font-size:.78rem;font-weight:600;color:{col}">{day['day']}</div>
+                    <div style="font-size:.7rem;color:#8b949e">{day['date'].strftime('%d %b')}</div>
+                  </div>
+                  <div style="flex:1">
+                    <span style="font-size:.82rem;font-weight:600;color:{col}">{day['name']}</span>
+                    {chandra_badge}
+                    <span style="font-size:.72rem;color:#8b949e;margin-left:8px">☽ {day['sign']} · {day['nakshatra']}</span>
+                    <div style="font-size:.75rem;color:#8b949e;margin-top:2px">{day['desc']}</div>
+                  </div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:{col};flex-shrink:0"></div>
+                </div>""", unsafe_allow_html=True)
+        except Exception as e:
+            st.warning(f"Weekly overview error: {e}")
+
+        # ── Chandrashtama next 90 days ────────────────────────────────────────
+        sec_title("Chandrashtama days — next 90 days")
+        st.markdown(f'<div class="info-box">Moon transits the 8th sign from your Rasi ({chart["rasi"]}) — this is your Chandrashtama sign: <b>{SIGNS[(rasi_idx+7)%12]}</b>. Avoid auspicious beginnings, major decisions, and surgeries during these ~2.5 day windows.</div>', unsafe_allow_html=True)
+        try:
+            with st.spinner("Calculating Chandrashtama dates..."):
+                c_days = get_chandrashtama_days(rasi_idx, lat, lon_coord, tz_str, days=90)
+            if c_days:
+                for c in c_days:
+                    now_loc = datetime.now()
+                    is_now  = c['start'] <= now_loc <= c['end']
+                    bg = '#3d0000' if is_now else '#2d1a1a'
+                    border = '#ff4444' if is_now else '#f8514966'
+                    now_badge = '<span style="font-size:.65rem;background:#ff4444;color:#fff;padding:1px 6px;border-radius:8px;margin-left:6px">ACTIVE NOW</span>' if is_now else ''
+                    dur = c['end'] - c['start']
+                    hrs = int(dur.total_seconds()//3600)
+                    st.markdown(f"""
+                    <div style="background:{bg};border:1px solid {border};border-radius:8px;
+                      padding:.65rem 1rem;margin-bottom:.45rem;display:flex;align-items:center;gap:1rem">
+                      <div style="flex:1">
+                        <div style="font-size:.85rem;font-weight:600;color:#f85149">
+                          {c['start'].strftime('%a, %d %b %Y  %I:%M %p')} → {c['end'].strftime('%d %b  %I:%M %p')}
+                          {now_badge}
+                        </div>
+                        <div style="font-size:.75rem;color:#8b949e;margin-top:2px">
+                          ☽ Moon in {c['sign']} · {c['nakshatra']} · ~{hrs}h duration
+                        </div>
+                      </div>
+                    </div>""", unsafe_allow_html=True)
+            else:
+                st.info("No Chandrashtama periods found in next 90 days.")
+        except Exception as e:
+            st.warning(f"Chandrashtama calculation error: {e}")
+
+    # ── TAB 10: Summary ───────────────────────────────────────────────────────
+    with tabs[9]:
         sec_title("Complete chart summary at a glance")
         data_rows = [
             ("Lagna (ascendant)", f"{chart['lagna']} ({chart['lagna_tamil']}) · {chart['lagna_degree']}°"),

@@ -581,26 +581,34 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
         try:
             overview = get_weekly_overview(rasi_idx, lat, lon_coord, tz_str)
             for day in overview:
-                q   = day['quality']
-                col = {'good':'#56d364','neutral':'#e3b341','bad':'#f85149'}.get(q,'#8b949e')
-                bg  = {'good':'#0d2010','neutral':'#1e1600','bad':'#2d1a1a'}.get(q,'#161b22')
-                chandra_badge = '<span style="font-size:.65rem;background:#2d1a1a;color:#f85149;padding:1px 6px;border-radius:8px;margin-left:6px">Chandrashtama</span>' if day['is_chandrashtama'] else ''
-                st.markdown(f"""
-                <div style="background:{bg};border:1px solid {col}33;border-radius:8px;
-                  padding:.55rem 1rem;margin-bottom:.4rem;
-                  display:flex;align-items:center;gap:1rem">
-                  <div style="width:44px;text-align:center;flex-shrink:0">
-                    <div style="font-size:.78rem;font-weight:600;color:{col}">{day['day']}</div>
-                    <div style="font-size:.7rem;color:#8b949e">{day['date'].strftime('%d %b')}</div>
-                  </div>
-                  <div style="flex:1">
-                    <span style="font-size:.82rem;font-weight:600;color:{col}">{day['name']}</span>
-                    {chandra_badge}
-                    <span style="font-size:.72rem;color:#8b949e;margin-left:8px">☽ {day['sign']} · {day['nakshatra']}</span>
-                    <div style="font-size:.75rem;color:#8b949e;margin-top:2px">{day['desc']}</div>
-                  </div>
-                  <div style="width:10px;height:10px;border-radius:50%;background:{col};flex-shrink:0"></div>
-                </div>""", unsafe_allow_html=True)
+                q         = day["quality"]
+                col       = {"good":"#56d364","neutral":"#e3b341","bad":"#f85149"}.get(q,"#8b949e")
+                bg        = {"good":"#0d2010","neutral":"#1e1600","bad":"#2d1a1a"}.get(q,"#161b22")
+                d_day     = day["day"]
+                d_date    = day["date"].strftime("%d %b")
+                d_name    = day["name"]
+                d_sign    = day["sign"]
+                d_nak     = day["nakshatra"]
+                d_desc    = day["desc"]
+                d_chandra = day["is_chandrashtama"]
+                chandra_badge = '<span style="font-size:.65rem;background:#2d1a1a;color:#f85149;padding:1px 6px;border-radius:8px;margin-left:6px">Chandrashtama</span>' if d_chandra else ""
+                html = (
+                    f'<div style="background:{bg};border:1px solid {col}33;border-radius:8px;'
+                    f'padding:.55rem 1rem;margin-bottom:.4rem;display:flex;align-items:center;gap:1rem">'
+                    f'<div style="width:44px;text-align:center;flex-shrink:0">'
+                    f'<div style="font-size:.78rem;font-weight:600;color:{col}">{d_day}</div>'
+                    f'<div style="font-size:.7rem;color:#8b949e">{d_date}</div>'
+                    f'</div>'
+                    f'<div style="flex:1">'
+                    f'<span style="font-size:.82rem;font-weight:600;color:{col}">{d_name}</span>'
+                    f'{chandra_badge}'
+                    f'<span style="font-size:.72rem;color:#8b949e;margin-left:8px">&#9790; {d_sign} &middot; {d_nak}</span>'
+                    f'<div style="font-size:.75rem;color:#8b949e;margin-top:2px">{d_desc}</div>'
+                    f'</div>'
+                    f'<div style="width:10px;height:10px;border-radius:50%;background:{col};flex-shrink:0"></div>'
+                    f'</div>'
+                )
+                st.markdown(html, unsafe_allow_html=True)
         except Exception as e:
             st.warning(f"Weekly overview error: {e}")
 
@@ -612,26 +620,30 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
                 c_days = get_chandrashtama_days(rasi_idx, lat, lon_coord, tz_str, days=90)
             if c_days:
                 for c in c_days:
-                    now_loc = datetime.now()
-                    is_now  = c['start'] <= now_loc <= c['end']
-                    bg = '#3d0000' if is_now else '#2d1a1a'
-                    border = '#ff4444' if is_now else '#f8514966'
-                    now_badge = '<span style="font-size:.65rem;background:#ff4444;color:#fff;padding:1px 6px;border-radius:8px;margin-left:6px">ACTIVE NOW</span>' if is_now else ''
-                    dur = c['end'] - c['start']
-                    hrs = int(dur.total_seconds()//3600)
-                    st.markdown(f"""
-                    <div style="background:{bg};border:1px solid {border};border-radius:8px;
-                      padding:.65rem 1rem;margin-bottom:.45rem;display:flex;align-items:center;gap:1rem">
-                      <div style="flex:1">
-                        <div style="font-size:.85rem;font-weight:600;color:#f85149">
-                          {c['start'].strftime('%a, %d %b %Y  %I:%M %p')} → {c['end'].strftime('%d %b  %I:%M %p')}
-                          {now_badge}
-                        </div>
-                        <div style="font-size:.75rem;color:#8b949e;margin-top:2px">
-                          ☽ Moon in {c['sign']} · {c['nakshatra']} · ~{hrs}h duration
-                        </div>
-                      </div>
-                    </div>""", unsafe_allow_html=True)
+                    now_loc   = datetime.now()
+                    is_now    = c["start"] <= now_loc <= c["end"]
+                    bg        = "#3d0000" if is_now else "#2d1a1a"
+                    border    = "#ff4444" if is_now else "#f8514966"
+                    c_start   = c["start"].strftime("%a, %d %b %Y  %I:%M %p")
+                    c_end     = c["end"].strftime("%d %b  %I:%M %p")
+                    c_sign    = c["sign"]
+                    c_nak     = c["nakshatra"]
+                    dur       = c["end"] - c["start"]
+                    hrs       = int(dur.total_seconds() // 3600)
+                    now_badge = '<span style="font-size:.65rem;background:#ff4444;color:#fff;padding:1px 6px;border-radius:8px;margin-left:6px">ACTIVE NOW</span>' if is_now else ""
+                    html = (
+                        f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
+                        f'padding:.65rem 1rem;margin-bottom:.45rem;display:flex;align-items:center;gap:1rem">'
+                        f'<div style="flex:1">'
+                        f'<div style="font-size:.85rem;font-weight:600;color:#f85149">'
+                        f'{c_start} &rarr; {c_end}{now_badge}'
+                        f'</div>'
+                        f'<div style="font-size:.75rem;color:#8b949e;margin-top:2px">'
+                        f'&#9790; Moon in {c_sign} &middot; {c_nak} &middot; ~{hrs}h duration'
+                        f'</div>'
+                        f'</div></div>'
+                    )
+                    st.markdown(html, unsafe_allow_html=True)
             else:
                 st.info("No Chandrashtama periods found in next 90 days.")
         except Exception as e:

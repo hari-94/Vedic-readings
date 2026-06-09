@@ -222,6 +222,105 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             metric(f"{chart['ayanamsa']}°",        "Lahiri ayanamsa"),
         ]) + '</div>', unsafe_allow_html=True)
 
+        # ── South Indian Rasi Chart ───────────────────────────────────────────
+        sec_title("Rasi chart — South Indian style (fixed signs)")
+        lagna_idx = chart['lagna_index']
+
+        # South Indian layout: fixed sign positions (Aries=top-row-2nd cell)
+        # Grid positions 0–11 map to fixed signs 0–11 (Aries..Pisces)
+        # Layout (row, col) for each sign index:
+        # Pis(11) Ari(0)  Tau(1)  Gem(2)
+        # Aqu(10) [center-left]   [center-right] Can(3)
+        # Cap(9)  [center-left]   [center-right] Leo(4)
+        # Sag(8)  Sco(7)  Lib(6)  Vir(5)
+        GRID_SIGN = [
+            [11, 0, 1, 2],
+            [10, -1, -1, 3],
+            [9,  -1, -1, 4],
+            [8,  7,  6,  5],
+        ]
+
+        # Build sign→planets mapping
+        sign_planets = {i: [] for i in range(12)}
+        for pname in ['Sun','Moon','Mars','Mercury','Jupiter','Venus','Saturn','Rahu','Ketu']:
+            si = p[pname]['sign_index']
+            sym = p[pname]['symbol']
+            abbr = pname[:3]
+            sign_planets[si].append(f"{sym}{abbr}")
+
+        SIGN_SHORT = ['Ari','Tau','Gem','Can','Leo','Vir',
+                      'Lib','Sco','Sag','Cap','Aqu','Pis']
+
+        def make_cell(sign_idx, is_center=False):
+            if is_center:
+                return '<td style="background:#0d1117;border:1px solid #21262d;width:25%;height:70px"></td>'
+            is_lagna = (sign_idx == lagna_idx)
+            lagna_mark = '<div style="font-size:.55rem;color:#e2c887;letter-spacing:.05em">ASC ★</div>' if is_lagna else ''
+            planets_here = sign_planets.get(sign_idx, [])
+            planet_html = ""
+            for pstr in planets_here:
+                sym_char = pstr[0]
+                p_name   = pstr[1:]
+                # color by planet
+                pcolor = {
+                    '☉':'#e2a020','☽':'#8ab4d4','♂':'#d45050','☿':'#50a050',
+                    '♃':'#c0842a','♀':'#c060a0','♄':'#8090a0','☊':'#9080c0','☋':'#c09060'
+                }.get(sym_char, '#c9d1d9')
+                planet_html += f'<span style="color:{pcolor};font-size:.72rem;font-weight:600;margin-right:2px">{sym_char}{p_name}</span>'
+
+            border_style = "border:1.5px solid #e2c887" if is_lagna else "border:1px solid #30363d"
+            bg_style     = "background:#1a1500" if is_lagna else "background:#161b22"
+
+            return (
+                f'<td style="{bg_style};{border_style};width:25%;height:70px;'
+                f'vertical-align:top;padding:4px 5px;font-size:.65rem">'
+                f'<div style="color:#8b949e;font-size:.6rem;margin-bottom:2px">{SIGN_SHORT[sign_idx]}</div>'
+                f'{lagna_mark}'
+                f'<div style="line-height:1.4">{planet_html}</div>'
+                f'</td>'
+            )
+
+        # Build center cells with chart label
+        center_html = (
+            '<td colspan="2" rowspan="2" style="background:#0d1117;border:1px solid #21262d;'
+            'text-align:center;vertical-align:middle;padding:8px">'
+            f'<div style="font-size:.75rem;font-weight:600;color:#e2c887;margin-bottom:4px">{name}</div>'
+            f'<div style="font-size:.65rem;color:#8b949e">{chart["lagna_tamil"]} Lagna</div>'
+            f'<div style="font-size:.6rem;color:#8b949e">{chart["rasi_tamil"]} Rasi</div>'
+            f'<div style="font-size:.6rem;color:#8b949e;margin-top:4px">{chart["nakshatra"]}</div>'
+            f'<div style="font-size:.58rem;color:#8b949e">Pada {chart["pada"]}</div>'
+            '</td>'
+        )
+
+        rows_html = ""
+        for r, row in enumerate(GRID_SIGN):
+            row_html = "<tr>"
+            skip_cols = 0
+            for c_idx, sign_idx in enumerate(row):
+                if skip_cols > 0:
+                    skip_cols -= 1
+                    continue
+                if sign_idx == -1:
+                    if r == 1 and c_idx == 1:
+                        row_html += center_html
+                        skip_cols = 1
+                    continue
+                row_html += make_cell(sign_idx)
+            row_html += "</tr>"
+            rows_html += row_html
+
+        chart_html = (
+            '<div style="background:#0d1117;border:1px solid #30363d;border-radius:10px;'
+            'padding:.75rem;margin-bottom:1rem;overflow-x:auto">'
+            '<table style="width:100%;border-collapse:collapse;table-layout:fixed">'
+            f'{rows_html}'
+            '</table>'
+            '<div style="font-size:.65rem;color:#8b949e;margin-top:.5rem;text-align:center">'
+            '★ = Lagna (Ascendant) &nbsp;|&nbsp; Fixed South Indian format</div>'
+            '</div>'
+        )
+        st.markdown(chart_html, unsafe_allow_html=True)
+
         sec_title("Lagna — ascendant personality")
         reading_text(LAGNA_DESC.get(chart['lagna'], ''))
 

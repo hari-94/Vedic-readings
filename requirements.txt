@@ -1,5 +1,4 @@
 streamlit>=1.32.0
 ephem>=4.1.0
-geopy>=2.4.0
 timezonefinder>=6.0.0
 pytz>=2024.1

@@ -9,9 +9,210 @@ import math
 import pytz
 import time as _time
 from datetime import datetime, timedelta
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from timezonefinder import TimezoneFinder
+
+# ── Offline city database — no API, no rate limits ────────────────────────────
+_CITIES = {
+    # Tamil Nadu
+    'chennai':(13.0827,80.2707),'madras':(13.0827,80.2707),
+    'coimbatore':(11.0168,76.9558),'madurai':(9.9252,78.1198),
+    'tiruchirappalli':(10.7905,78.7047),'trichy':(10.7905,78.7047),
+    'salem':(11.6643,78.1460),'tirunelveli':(8.7139,77.7567),
+    'vellore':(12.9165,79.1325),'erode':(11.3410,77.7172),
+    'thoothukudi':(8.7642,78.1348),'tuticorin':(8.7642,78.1348),
+    'thanjavur':(10.7870,79.1378),'tiruppur':(11.1085,77.3411),
+    'kanchipuram':(12.8185,79.6947),'cuddalore':(11.7447,79.7689),
+    'nagapattinam':(10.7672,79.8449),'kumbakonam':(10.9617,79.3845),
+    'dindigul':(10.3624,77.9695),'karur':(10.9601,78.0766),
+    'rajapalayam':(9.4535,77.5564),'sivakasi':(9.4536,77.7979),
+    'nagercoil':(8.1833,77.4119),'hosur':(12.7409,77.8253),
+    'ooty':(11.4102,76.6950),'kodaikanal':(10.2381,77.4892),
+    'pondicherry':(11.9416,79.8083),'puducherry':(11.9416,79.8083),
+    'villupuram':(11.9401,79.4861),'tiruvannamalai':(12.2253,79.0747),
+    'chidambaram':(11.3993,79.6931),'mayiladuthurai':(11.1019,79.6519),
+    'sirkazhi':(11.2333,79.7500),'thirunageswaram':(10.9450,79.4192),
+    'keezhperumpallam':(11.1667,79.7167),'tiruvarur':(10.7667,79.6333),
+    'ariyalur':(11.1400,79.0800),'perambalur':(11.2330,78.8800),
+    'dharmapuri':(12.1278,78.1580),'krishnagiri':(12.5186,78.2137),
+    'namakkal':(11.2189,78.1674),'tirupathur':(12.4964,78.5704),
+    'ranipet':(12.9310,79.3330),'tenkasi':(8.9600,77.3150),
+    'virudhunagar':(9.5851,77.9630),'kallakurichi':(11.7380,78.9610),
+    'tirupattur':(12.4964,78.5704),'ambur':(12.7920,78.7170),
+    # Karnataka
+    'bangalore':(12.9716,77.5946),'bengaluru':(12.9716,77.5946),
+    'mysore':(12.2958,76.6394),'hubli':(15.3647,75.1240),
+    'mangalore':(12.9141,74.8560),'belgaum':(15.8497,74.4977),
+    'gulbarga':(17.3297,76.8343),'davangere':(14.4644,75.9218),
+    'bellary':(15.1394,76.9214),'bijapur':(16.8302,75.7100),
+    'shimoga':(13.9299,75.5681),'tumkur':(13.3379,77.1173),
+    'raichur':(16.2120,77.3566),'bidar':(17.9133,77.5108),
+    'udupi':(13.3409,74.7421),'hassan':(13.0068,76.0996),
+    # Andhra Pradesh & Telangana
+    'hyderabad':(17.3850,78.4867),'vijayawada':(16.5062,80.6480),
+    'visakhapatnam':(17.6868,83.2185),'vizag':(17.6868,83.2185),
+    'tirupati':(13.6288,79.4192),'guntur':(16.3067,80.4365),
+    'nellore':(14.4426,79.9865),'kurnool':(15.8281,78.0373),
+    'warangal':(17.9689,79.5941),'nizamabad':(18.6725,78.0941),
+    'karimnagar':(18.4386,79.1288),'rajahmundry':(17.0005,81.8040),
+    # Kerala
+    'thiruvananthapuram':(8.5241,76.9366),'trivandrum':(8.5241,76.9366),
+    'kochi':(9.9312,76.2673),'cochin':(9.9312,76.2673),
+    'kozhikode':(11.2588,75.7804),'calicut':(11.2588,75.7804),
+    'thrissur':(10.5276,76.2144),'kollam':(8.8932,76.6141),
+    'palakkad':(10.7867,76.6548),'alappuzha':(9.4981,76.3388),
+    'malappuram':(11.0730,76.0740),'kannur':(11.8745,75.3704),
+    'kottayam':(9.5916,76.5222),'idukki':(9.9189,77.1025),
+    # Maharashtra
+    'mumbai':(19.0760,72.8777),'pune':(18.5204,73.8567),
+    'nagpur':(21.1458,79.0882),'nashik':(19.9975,73.7898),
+    'aurangabad':(19.8762,75.3433),'solapur':(17.6805,75.9064),
+    'kolhapur':(16.7050,74.2433),'amravati':(20.9374,77.7796),
+    'thane':(19.2183,72.9781),'navi mumbai':(19.0368,73.0158),
+    # Gujarat
+    'ahmedabad':(23.0225,72.5714),'surat':(21.1702,72.8311),
+    'vadodara':(22.3072,73.1812),'rajkot':(22.3039,70.8022),
+    'bhavnagar':(21.7645,72.1519),'jamnagar':(22.4707,70.0577),
+    # North India
+    'delhi':(28.6139,77.2090),'new delhi':(28.6139,77.2090),
+    'jaipur':(26.9124,75.7873),'lucknow':(26.8467,80.9462),
+    'kanpur':(26.4499,80.3319),'agra':(27.1767,78.0081),
+    'varanasi':(25.3176,82.9739),'patna':(25.5941,85.1376),
+    'allahabad':(25.4358,81.8463),'prayagraj':(25.4358,81.8463),
+    'meerut':(28.9845,77.7064),'ghaziabad':(28.6692,77.4538),
+    'noida':(28.5355,77.3910),'faridabad':(28.4089,77.3178),
+    'gurgaon':(28.4595,77.0266),'gurugram':(28.4595,77.0266),
+    'chandigarh':(30.7333,76.7794),'amritsar':(31.6340,74.8723),
+    'ludhiana':(30.9010,75.8573),'jalandhar':(31.3260,75.5762),
+    'bhopal':(23.2599,77.4126),'indore':(22.7196,75.8577),
+    'jabalpur':(23.1815,79.9864),'gwalior':(26.2183,78.1828),
+    'jodhpur':(26.2389,73.0243),'kota':(25.2138,75.8648),
+    'ajmer':(26.4499,74.6399),'udaipur':(24.5854,73.7125),
+    'kolkata':(22.5726,88.3639),'calcutta':(22.5726,88.3639),
+    'siliguri':(26.7271,88.3953),'durgapur':(23.5204,87.3119),
+    'ranchi':(23.3441,85.3096),'jamshedpur':(22.8046,86.2029),
+    'bhubaneswar':(20.2961,85.8245),'cuttack':(20.4625,85.8830),
+    'raipur':(21.2514,81.6296),'bilaspur':(22.0797,82.1391),
+    'dehradun':(30.3165,78.0322),'haridwar':(29.9457,78.1642),
+    'rishikesh':(30.0869,78.2676),'shimla':(31.1048,77.1734),
+    'jammu':(32.7266,74.8570),'srinagar':(34.0837,74.7973),
+    'leh':(34.1526,77.5771),'guwahati':(26.1445,91.7362),
+    'imphal':(24.8170,93.9368),'shillong':(25.5788,91.8933),
+    'aizawl':(23.7307,92.7173),'kohima':(25.6751,94.1086),
+    'agartala':(23.8315,91.2868),'gangtok':(27.3389,88.6065),
+    'panaji':(15.4909,73.8278),'goa':(15.2993,74.1240),
+    'bareilly':(28.3670,79.4304),'moradabad':(28.8386,78.7733),
+    'aligarh':(27.8974,78.0880),'gorakhpur':(26.7606,83.3732),
+    # USA
+    'new york':(40.7128,-74.0060),'los angeles':(34.0522,-118.2437),
+    'chicago':(41.8781,-87.6298),'houston':(29.7604,-95.3698),
+    'phoenix':(33.4484,-112.0740),'philadelphia':(39.9526,-75.1652),
+    'san antonio':(29.4241,-98.4936),'san diego':(32.7157,-117.1611),
+    'dallas':(32.7767,-96.7970),'san jose':(37.3382,-121.8863),
+    'austin':(30.2672,-97.7431),'san francisco':(37.7749,-122.4194),
+    'seattle':(47.6062,-122.3321),'denver':(39.7392,-104.9903),
+    'washington':(38.9072,-77.0369),'boston':(42.3601,-71.0589),
+    'las vegas':(36.1699,-115.1398),'miami':(25.7617,-80.1918),
+    'atlanta':(33.7490,-84.3880),'portland':(45.5051,-122.6750),
+    'minneapolis':(44.9778,-93.2650),'new orleans':(29.9511,-90.0715),
+    'edwards':(39.6453,-106.9201),'vail':(39.6433,-106.3781),
+    'columbus':(39.9612,-82.9988),'charlotte':(35.2271,-80.8431),
+    'indianapolis':(39.7684,-86.1581),'nashville':(36.1627,-86.7816),
+    'memphis':(35.1495,-90.0490),'louisville':(38.2527,-85.7585),
+    'baltimore':(39.2904,-76.6122),'milwaukee':(43.0389,-87.9065),
+    'albuquerque':(35.0844,-106.6504),'tucson':(32.2226,-110.9747),
+    'fresno':(36.7378,-119.7871),'sacramento':(38.5816,-121.4944),
+    'salt lake city':(40.7608,-111.8910),'reno':(39.5296,-119.8138),
+    # UK
+    'london':(51.5074,-0.1278),'birmingham':(52.4862,-1.8904),
+    'leeds':(53.8008,-1.5491),'glasgow':(55.8642,-4.2518),
+    'edinburgh':(55.9533,-3.1883),'manchester':(53.4808,-2.2426),
+    'liverpool':(53.4084,-2.9916),'bristol':(51.4545,-2.5879),
+    'sheffield':(53.3811,-1.4701),'leicester':(52.6369,-1.1398),
+    # Europe
+    'paris':(48.8566,2.3522),'berlin':(52.5200,13.4050),
+    'madrid':(40.4168,-3.7038),'rome':(41.9028,12.4964),
+    'amsterdam':(52.3676,4.9041),'brussels':(50.8503,4.3517),
+    'vienna':(48.2082,16.3738),'zurich':(47.3769,8.5417),
+    'stockholm':(59.3293,18.0686),'oslo':(59.9139,10.7522),
+    'copenhagen':(55.6761,12.5683),'helsinki':(60.1699,24.9384),
+    'warsaw':(52.2297,21.0122),'prague':(50.0755,14.4378),
+    'budapest':(47.4979,19.0402),'bucharest':(44.4268,26.1025),
+    'athens':(37.9838,23.7275),'lisbon':(38.7169,-9.1399),
+    'barcelona':(41.3851,2.1734),'milan':(45.4654,9.1859),
+    # Asia Pacific
+    'tokyo':(35.6762,139.6503),'osaka':(34.6937,135.5023),
+    'beijing':(39.9042,116.4074),'shanghai':(31.2304,121.4737),
+    'hong kong':(22.3193,114.1694),'singapore':(1.3521,103.8198),
+    'dubai':(25.2048,55.2708),'abu dhabi':(24.4539,54.3773),
+    'riyadh':(24.7136,46.6753),'jeddah':(21.4858,39.1925),
+    'bangkok':(13.7563,100.5018),'kuala lumpur':(3.1390,101.6869),
+    'jakarta':(6.2088,106.8456),'manila':(14.5995,120.9842),
+    'seoul':(37.5665,126.9780),'taipei':(25.0330,121.5654),
+    'karachi':(24.8607,67.0011),'lahore':(31.5204,74.3587),
+    'islamabad':(33.6844,73.0479),'dhaka':(23.8103,90.4125),
+    'colombo':(6.9271,79.8612),'kathmandu':(27.7172,85.3240),
+    # Oceania & Americas
+    'sydney':(-33.8688,151.2093),'melbourne':(-37.8136,144.9631),
+    'brisbane':(-27.4698,153.0251),'perth':(-31.9505,115.8605),
+    'toronto':(43.6532,-79.3832),'vancouver':(49.2827,-123.1207),
+    'montreal':(45.5017,-73.5673),'calgary':(51.0447,-114.0719),
+    'cairo':(30.0444,31.2357),'johannesburg':(-26.2041,28.0473),
+    'nairobi':(-1.2921,36.8219),'lagos':(6.5244,3.3792),
+    'sao paulo':(-23.5505,-46.6333),'buenos aires':(-34.6037,-58.3816),
+    'mexico city':(19.4326,-99.1332),'bogota':(4.7110,-74.0721),
+    'lima':(-12.0464,-77.0428),'santiago':(-33.4489,-70.6693),
+}
+
+_TF = TimezoneFinder()
+_geo_cache: dict = {}
+
+def get_coordinates(place: str):
+    """Offline city lookup — no API calls, no rate limits."""
+    key = place.strip().lower()
+
+    # Check cache first
+    if key in _geo_cache:
+        return _geo_cache[key]
+
+    # Normalize: remove punctuation, split tokens
+    import re
+    tokens = re.sub(r'[,\.\-]', ' ', key).split()
+
+    # 1. Exact match on full key
+    if key in _CITIES:
+        lat, lon = _CITIES[key]
+        tz = _TF.timezone_at(lat=lat, lng=lon) or "Asia/Kolkata"
+        result = (lat, lon, tz, place.strip())
+        _geo_cache[key] = result
+        return result
+
+    # 2. Match any token (longest token first to prioritize specificity)
+    tokens_sorted = sorted(tokens, key=len, reverse=True)
+    for token in tokens_sorted:
+        if len(token) < 4:
+            continue
+        if token in _CITIES:
+            lat, lon = _CITIES[token]
+            tz = _TF.timezone_at(lat=lat, lng=lon) or "Asia/Kolkata"
+            result = (lat, lon, tz, place.strip())
+            _geo_cache[key] = result
+            return result
+
+    # 3. Partial substring match
+    for city_key, coords in _CITIES.items():
+        for token in tokens_sorted:
+            if len(token) >= 4 and (token in city_key or city_key in token):
+                lat, lon = coords
+                tz = _TF.timezone_at(lat=lat, lng=lon) or "Asia/Kolkata"
+                result = (lat, lon, tz, place.strip())
+                _geo_cache[key] = result
+                return result
+
+    raise ValueError(
+        f"City not found in offline database: '{place}'. "
+        "Please enter coordinates manually using the expander below the form. "
+        "Find your coordinates at latlong.net"
+    )
 
 # ── Zodiac ─────────────────────────────────────────────────────────────────────
 SIGNS = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo',
@@ -214,50 +415,6 @@ REMEDY_DB = {
 def lahiri_ayanamsa(year: float) -> float:
     """Lahiri ayanamsa accurate to ~0.02° for 1900–2100."""
     return 22.460148 + (year - 1900) * 0.013611 + (year - 1900)**2 * 0.000001
-
-# ── Geocoding cache (session-level, avoids repeated 429s) ─────────────────────
-_geo_cache: dict = {}
-
-def get_coordinates(place: str):
-    key = place.strip().lower()
-    if key in _geo_cache:
-        return _geo_cache[key]
-
-    tf  = TimezoneFinder()
-    # Try with retry + backoff
-    last_err = None
-    for attempt in range(4):
-        try:
-            geo = Nominatim(
-                user_agent=f"vedic_jathagam_app_v3_{attempt}",
-                timeout=12,
-            )
-            loc = geo.geocode(place.strip())
-            if loc:
-                tz_str = tf.timezone_at(lat=loc.latitude, lng=loc.longitude) or "Asia/Kolkata"
-                result = (loc.latitude, loc.longitude, tz_str, loc.address)
-                _geo_cache[key] = result
-                return result
-            # Not found — no point retrying
-            raise ValueError(
-                f"Place not found: '{place}'. "
-                "Try adding the country — e.g. 'Chennai, Tamil Nadu, India'."
-            )
-        except (GeocoderTimedOut, GeocoderServiceError) as e:
-            last_err = e
-            _time.sleep(2 ** attempt)   # 1s, 2s, 4s, 8s
-        except ValueError:
-            raise
-        except Exception as e:
-            last_err = e
-            _time.sleep(2 ** attempt)
-
-    raise ValueError(
-        f"Geocoding failed after retries for '{place}'. "
-        "Check your internet connection, or try a more specific place name "
-        "(e.g. 'Chennai, Tamil Nadu, India'). "
-        f"Last error: {last_err}"
-    )
 
 # ── Local → UTC ────────────────────────────────────────────────────────────────
 def to_utc(dob: datetime, tz_str: str) -> datetime:

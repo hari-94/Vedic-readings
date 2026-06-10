@@ -7,8 +7,10 @@ No API key. No compilation required.
 import ephem
 import math
 import pytz
+import time as _time
 from datetime import datetime, timedelta
 from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from timezonefinder import TimezoneFinder
 
 # ── Zodiac ─────────────────────────────────────────────────────────────────────
@@ -213,18 +215,49 @@ def lahiri_ayanamsa(year: float) -> float:
     """Lahiri ayanamsa accurate to ~0.02° for 1900–2100."""
     return 22.460148 + (year - 1900) * 0.013611 + (year - 1900)**2 * 0.000001
 
-# ── Geocoding ──────────────────────────────────────────────────────────────────
+# ── Geocoding cache (session-level, avoids repeated 429s) ─────────────────────
+_geo_cache: dict = {}
+
 def get_coordinates(place: str):
-    geo = Nominatim(user_agent="vedic_astro_v3")
-    loc = geo.geocode(place, timeout=10)
-    if not loc:
-        raise ValueError(
-            f"Place not found: '{place}'. "
-            "Try adding the country — e.g. 'Chennai, Tamil Nadu, India'."
-        )
-    tf = TimezoneFinder()
-    tz_str = tf.timezone_at(lat=loc.latitude, lng=loc.longitude) or "Asia/Kolkata"
-    return loc.latitude, loc.longitude, tz_str, loc.address
+    key = place.strip().lower()
+    if key in _geo_cache:
+        return _geo_cache[key]
+
+    tf  = TimezoneFinder()
+    # Try with retry + backoff
+    last_err = None
+    for attempt in range(4):
+        try:
+            geo = Nominatim(
+                user_agent=f"vedic_jathagam_app_v3_{attempt}",
+                timeout=12,
+            )
+            loc = geo.geocode(place.strip())
+            if loc:
+                tz_str = tf.timezone_at(lat=loc.latitude, lng=loc.longitude) or "Asia/Kolkata"
+                result = (loc.latitude, loc.longitude, tz_str, loc.address)
+                _geo_cache[key] = result
+                return result
+            # Not found — no point retrying
+            raise ValueError(
+                f"Place not found: '{place}'. "
+                "Try adding the country — e.g. 'Chennai, Tamil Nadu, India'."
+            )
+        except (GeocoderTimedOut, GeocoderServiceError) as e:
+            last_err = e
+            _time.sleep(2 ** attempt)   # 1s, 2s, 4s, 8s
+        except ValueError:
+            raise
+        except Exception as e:
+            last_err = e
+            _time.sleep(2 ** attempt)
+
+    raise ValueError(
+        f"Geocoding failed after retries for '{place}'. "
+        "Check your internet connection, or try a more specific place name "
+        "(e.g. 'Chennai, Tamil Nadu, India'). "
+        f"Last error: {last_err}"
+    )
 
 # ── Local → UTC ────────────────────────────────────────────────────────────────
 def to_utc(dob: datetime, tz_str: str) -> datetime:

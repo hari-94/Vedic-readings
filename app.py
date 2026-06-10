@@ -2,6 +2,7 @@
 app.py — Vedic Astrology Reading App
 Full chart calculation using Swiss Ephemeris (Lahiri ayanamsa).
 No API key required — all astrology logic is built-in.
+Supports English and Tamil (தமிழ்) language toggle.
 """
 import streamlit as st
 from datetime import datetime, date, time
@@ -17,6 +18,326 @@ from panchang import (
     get_kalam_times, get_abhijit, get_today_moon, moon_effect_on_rasi,
     get_chandrashtama_days, get_good_windows, get_weekly_overview,
 )
+
+# ── Tamil translations ─────────────────────────────────────────────────────────
+TAM = {
+    # App title
+    "app_title":        "வேத ஜோதிட வாசிப்பு",
+    "app_sub":          "தென்னிந்திய ஜாதகம் · சுவிஸ் எபிமெரிஸ் · லாஹிரி அயனாம்சம்",
+    # Form labels
+    "full_name":        "முழு பெயர்",
+    "dob":              "பிறந்த தேதி",
+    "tob":              "பிறந்த நேரம் (HH:MM)",
+    "pob":              "பிறந்த இடம்",
+    "gender":           "பாலினம்",
+    "generate":         "✨  ஜாதகம் உருவாக்கு",
+    "new_reading":      "🔄  புதிய ஜாதகம்",
+    "select":           "தேர்ந்தெடு",
+    "male":             "ஆண்",
+    "female":           "பெண்",
+    "other":            "மற்றவை",
+    "tob_hint":         "பிறந்த நேரம் லக்னம் துல்லியத்தை மேம்படுத்துகிறது. தெரியாவிட்டால் 12:00 பயன்படுத்தவும்.",
+    "casting":          "சுவிஸ் எபிமெரிஸ் மூலம் ஜாதகம் வரைகிறது…",
+    # Tab names
+    "tab_overview":     "🌟 கண்ணோட்டம்",
+    "tab_planets":      "🪐 கிரகங்கள்",
+    "tab_houses":       "🏠 பாவங்கள்",
+    "tab_dasha":        "⏳ தசை",
+    "tab_career":       "💼 தொழில்",
+    "tab_relationships":"💞 திருமணம்",
+    "tab_yogas":        "⚖️ யோகங்கள்",
+    "tab_remedies":     "🧿 பரிகாரங்கள்",
+    "tab_panchang":     "📅 பஞ்சாங்கம்",
+    "tab_summary":      "📊 சுருக்கம்",
+    # Section titles
+    "sec_lagna":        "லக்னம் — ஆளுமை",
+    "sec_rasi":         "ராசி — சந்திர ராசி",
+    "sec_nakshatra":    "ஜன்ம நட்சத்திரம்",
+    "sec_star_profile": "நட்சத்திர விவரம்",
+    "sec_nak_meaning":  "நட்சத்திர பொருள்",
+    "sec_chart":        "ராசி சக்கரம் — தென்னிந்திய வடிவம்",
+    "sec_planets":      "நவகிரக நிலைகள் (லாஹிரி சைடீரியல்)",
+    "sec_houses":       "12 பாவங்கள் — முழு ராசி முறை",
+    "sec_dasha_curr":   "தற்போதைய தசை வாசிப்பு",
+    "sec_dasha_antar":  "தற்போதைய அந்தர் தசை",
+    "sec_dasha_full":   "முழு விம்சோத்தரி தசை கோடு",
+    "sec_career":       "தொழில் & செல்வ விதி",
+    "sec_career_fields":"உங்கள் லக்னத்திற்கான சிறந்த தொழில் துறைகள்",
+    "sec_career_yk":    "யோக காரகன் & தொழில் செல்வம்",
+    "sec_wealth_lords": "செல்வ பாவ அதிபதிகள்",
+    "sec_marriage":     "திருமணம் & கூட்டாண்மை",
+    "sec_venus":        "சுக்கிரன் — திருமணத்தின் இயற்கை காரகன்",
+    "sec_spouse":       "வாழ்க்கைத்துணை குறிகாட்டிகள்",
+    "sec_yogas":        "யோகங்கள் & தோஷங்கள்",
+    "sec_remedies":     "உங்கள் ஜாதகத்திற்கான பரிகாரங்கள்",
+    "sec_daily":        "அன்றாட பரிகாரங்கள்",
+    "sec_today_moon":   "இன்றைய சந்திரன்",
+    "sec_kalam":        "இன்றைய கால நேரங்கள் — புதிய தொடக்கங்களை தவிர்க்கவும்",
+    "sec_good_windows": "இன்றைய சிறந்த நேரங்கள்",
+    "sec_14day":        "உங்கள் ராசிக்கான 14 நாள் சந்திர நாட்காட்டி",
+    "sec_chandra":      "சந்திராஷ்டம நாட்கள் — அடுத்த 90 நாட்கள்",
+    "sec_summary":      "முழு ஜாதக சுருக்கம்",
+    "sec_all_planets":  "அனைத்து கிரக நிலைகள்",
+    # Labels
+    "lagna_lbl":        "லக்னம் (உதயம்)",
+    "rasi_lbl":         "ராசி (சந்திர ராசி)",
+    "nakshatra_lbl":    "ஜன்ம நட்சத்திரம்",
+    "pada_lbl":         "நட்சத்திர பாதம்",
+    "lagna_lord_lbl":   "லக்னாதிபதி",
+    "nak_lord_lbl":     "நட்சத்திர அதிபதி",
+    "element_lbl":      "தத்துவம்",
+    "ayanamsa_lbl":     "லாஹிரி அயனாம்சம்",
+    "deity_lbl":        "தேவதை",
+    "symbol_lbl":       "சின்னம்",
+    "lord_lbl":         "அதிபதி",
+    "quality_lbl":      "குணம்",
+    "curr_dasha_lbl":   "தற்போதைய தசை",
+    "started_lbl":      "தொடங்கியது",
+    "ends_lbl":         "முடிவு",
+    "duration_lbl":     "கால அளவு",
+    "upcoming_lbl":     "வரும் தசை",
+    "10h_sign_lbl":     "10ம் பாவ ராசி",
+    "10h_lord_lbl":     "10ம் பாவ அதிபதி",
+    "planets_10h_lbl":  "10ம் பாவ கிரகங்கள்",
+    "7h_sign_lbl":      "7ம் பாவ ராசி",
+    "7h_lord_lbl":      "7ம் பாவ அதிபதி",
+    "7h_placed_lbl":    "நிலை",
+    "7h_planets_lbl":   "7ம் பாவ கிரகங்கள்",
+    "sunrise_lbl":      "சூர்யோதயம்",
+    "sunset_lbl":       "சூர்யாஸ்தமனம்",
+    "day_lord_lbl":     "வார அதிபதி",
+    "house_lbl":        "பாவம்",
+    "sign_lbl":         "ராசி",
+    "degree_lbl":       "பாகை",
+    "planet_lbl":       "கிரகம்",
+    # Planet names in Tamil
+    "Sun":     "சூரியன்", "Moon":    "சந்திரன்", "Mars":    "செவ்வாய்",
+    "Mercury": "புதன்",   "Jupiter": "குரு",     "Venus":   "சுக்கிரன்",
+    "Saturn":  "சனி",     "Rahu":    "ராகு",     "Ketu":    "கேது",
+    # Kalam names
+    "rahu_kalam":    "ராகு காலம்",
+    "yamagandam":    "யமகண்டம்",
+    "gulika_kalam":  "குளிகை காலம்",
+    "abhijit":       "அபிஜித் முகூர்த்தம்",
+    # Chandrashtama
+    "chandrashtama": "சந்திராஷ்டமம்",
+    "active_now":    "இப்போது செயலில்",
+    "no_periods":    "அடுத்த 90 நாட்களில் சந்திராஷ்டம காலம் இல்லை.",
+    # Misc
+    "house":         "பாவம்",
+    "empty":         "காலி",
+    "retrograde":    "வக்ர",
+    "asc_label":     "லக்னம் ★",
+    "new_reading_btn": "புதிய வாசிப்பு",
+    "yoga_karaka":   "யோக காரகன்",
+    "none":          "இல்லை",
+    "best_time":     "சிறந்த நேரம்",
+    "years":         "ஆண்டுகள்",
+    "duration_h":    "காலம்",
+}
+
+ENG = {
+    "app_title":        "Vedic Astrology Reading",
+    "app_sub":          "South Indian Jathagam · Swiss Ephemeris · Lahiri ayanamsa · No API key required",
+    "full_name":        "Full name",
+    "dob":              "Date of birth",
+    "tob":              "Time of birth (HH:MM 24h)",
+    "pob":              "Place of birth",
+    "gender":           "Gender",
+    "generate":         "✨  Generate reading",
+    "new_reading":      "🔄  New reading",
+    "select":           "Select",
+    "male":             "Male",
+    "female":           "Female",
+    "other":            "Other",
+    "tob_hint":         "Time of birth significantly improves Lagna accuracy. Use 12:00 if unknown.",
+    "casting":          "Casting chart with Swiss Ephemeris…",
+    "tab_overview":     "🌟 Overview",
+    "tab_planets":      "🪐 Planets",
+    "tab_houses":       "🏠 Houses",
+    "tab_dasha":        "⏳ Dasha",
+    "tab_career":       "💼 Career",
+    "tab_relationships":"💞 Relationships",
+    "tab_yogas":        "⚖️ Yogas",
+    "tab_remedies":     "🧿 Remedies",
+    "tab_panchang":     "📅 Panchang",
+    "tab_summary":      "📊 Summary",
+    "sec_lagna":        "Lagna — ascendant personality",
+    "sec_rasi":         "Rasi — moon sign",
+    "sec_nakshatra":    "Janma nakshatra",
+    "sec_star_profile": "Star profile",
+    "sec_nak_meaning":  "Nakshatra meaning",
+    "sec_chart":        "Rasi chart — South Indian style (fixed signs)",
+    "sec_planets":      "Navagraha placements (Lahiri sidereal)",
+    "sec_houses":       "12 houses — whole-sign system from lagna",
+    "sec_dasha_curr":   "Current dasha reading",
+    "sec_dasha_antar":  "Current antardasha",
+    "sec_dasha_full":   "Full Vimshottari timeline",
+    "sec_career":       "Career & wealth destiny",
+    "sec_career_fields":"Best career fields for your lagna",
+    "sec_career_yk":    "Yoga Karaka and career wealth",
+    "sec_wealth_lords": "Wealth house lords",
+    "sec_marriage":     "Marriage and partnership analysis",
+    "sec_venus":        "Venus — the natural significator of marriage",
+    "sec_spouse":       "Spouse indicators",
+    "sec_yogas":        "Yogas and doshas detected in your chart",
+    "sec_remedies":     "Planetary remedies for your chart",
+    "sec_daily":        "Universal daily practices",
+    "sec_today_moon":   "Today's Moon",
+    "sec_kalam":        "Today's kalam timings — avoid for new starts",
+    "sec_good_windows": "Best windows today for important activities",
+    "sec_14day":        "14-day lunar calendar for your Rasi",
+    "sec_chandra":      "Chandrashtama days — next 90 days",
+    "sec_summary":      "Complete chart summary at a glance",
+    "sec_all_planets":  "All planetary positions",
+    "lagna_lbl":        "Lagna (ascendant)",
+    "rasi_lbl":         "Rasi (moon sign)",
+    "nakshatra_lbl":    "Janma nakshatra",
+    "pada_lbl":         "Nakshatra pada",
+    "lagna_lord_lbl":   "Lagna lord",
+    "nak_lord_lbl":     "Nakshatra lord",
+    "element_lbl":      "Element",
+    "ayanamsa_lbl":     "Lahiri ayanamsa",
+    "deity_lbl":        "Deity",
+    "symbol_lbl":       "Symbol",
+    "lord_lbl":         "Lord",
+    "quality_lbl":      "Quality",
+    "curr_dasha_lbl":   "Current dasha",
+    "started_lbl":      "Started",
+    "ends_lbl":         "Ends",
+    "duration_lbl":     "Duration",
+    "upcoming_lbl":     "Upcoming dasha",
+    "10h_sign_lbl":     "10th house sign",
+    "10h_lord_lbl":     "10th house lord",
+    "planets_10h_lbl":  "Planets in 10H",
+    "7h_sign_lbl":      "7th house sign",
+    "7h_lord_lbl":      "7th house lord",
+    "7h_placed_lbl":    "placed in",
+    "7h_planets_lbl":   "Planets in 7H",
+    "sunrise_lbl":      "Sunrise",
+    "sunset_lbl":       "Sunset",
+    "day_lord_lbl":     "Day lord",
+    "house_lbl":        "House",
+    "sign_lbl":         "Sign",
+    "degree_lbl":       "Degree",
+    "planet_lbl":       "Planet",
+    "Sun":     "Sun",     "Moon":    "Moon",    "Mars":    "Mars",
+    "Mercury": "Mercury", "Jupiter": "Jupiter", "Venus":   "Venus",
+    "Saturn":  "Saturn",  "Rahu":    "Rahu",    "Ketu":    "Ketu",
+    "rahu_kalam":    "Rahu Kalam",
+    "yamagandam":    "Yamagandam",
+    "gulika_kalam":  "Gulika Kalam",
+    "abhijit":       "Abhijit Muhurta",
+    "chandrashtama": "Chandrashtama",
+    "active_now":    "ACTIVE NOW",
+    "no_periods":    "No Chandrashtama periods found in next 90 days.",
+    "house":         "house",
+    "empty":         "Empty",
+    "retrograde":    "℞ Retrograde",
+    "asc_label":     "ASC ★",
+    "new_reading_btn": "New reading",
+    "yoga_karaka":   "Yoga Karaka",
+    "none":          "None",
+    "best_time":     "Best time",
+    "years":         "years",
+    "duration_h":    "duration",
+}
+
+# Tamil section titles and descriptions
+LAGNA_DESC_TAM = {
+    'Aries':      'தைரியம், சக்தி, முன்னோடி மனப்பான்மை. இயற்கையான தலைவர். வேகமான முடிவெடுப்பவர்.',
+    'Taurus':     'பொறுமை, கலை உணர்வு, நிலையான மனம். வசதிகளை விரும்புபவர். நம்பகமான நண்பன்.',
+    'Gemini':     'அறிவார்ந்த ஆர்வம், தகவல் தொடர்பு திறன், மாற்றியமைக்கும் திறன். சுறுசுறுப்பான மனம்.',
+    'Cancer':     'அன்பு, உணர்வுப்பூர்வமான உள்ளுணர்வு, குடும்பப் பற்று. பாதுகாக்கும் குணம்.',
+    'Leo':        'தன்னம்பிக்கை, தாராள மனப்பான்மை, தலைமைத்துவ குணம். கவுரவத்தை விரும்புபவர்.',
+    'Virgo':      'விரிவான பகுப்பாய்வு, சேவை மனம், நுண்ணிய கவனிப்பு. உயர் தரத்தை விரும்புபவர்.',
+    'Libra':      'நீதி, சமநிலை, கலை ஈர்ப்பு, உறவுகளில் கவனம். இயற்கையான தூதுவர்.',
+    'Scorpio':    'ஆழமான உணர்வுகள், மாற்றும் சக்தி, மர்ம சக்தி. தடைகளை கடந்து எழுபவர்.',
+    'Sagittarius':'தத்துவம், நம்பிக்கை, சாகசம், உண்மையை தேடுபவர். அறிவை விரும்புபவர்.',
+    'Capricorn':  'ஒழுக்கம், லட்சியம், பொறுமை, கட்டமைப்பு. மெதுவாக உயர்பவர், உறுதியாக நிற்பவர்.',
+    'Aquarius':   'மனிதாபிமானம், அசல் சிந்தனை, சமுதாய நலன். புரட்சிகரமான கண்ணோட்டம்.',
+    'Pisces':     'இரக்கம், கற்பனை சக்தி, ஆன்மிக ஈர்ப்பு, அன்பு. உயர்ந்த படைப்பாற்றல்.',
+}
+
+RASI_DESC_TAM = {
+    'Aries':      'உங்கள் உள் உலகம் உத்வேகமானது, உணர்ச்சிகரமானது, சுதந்திரமானது.',
+    'Taurus':     'உங்கள் உள் மனம் நிலைத்தன்மை, அழகு, உடல் இன்பத்தை விரும்புகிறது.',
+    'Gemini':     'உங்கள் மனம் அமைதியற்றது, ஆர்வமானது, எப்போதும் புதிய யோசனைகளை தேடுகிறது.',
+    'Cancer':     'உங்கள் உணர்வு மையம் உணர்திறன் மிக்கது, அன்பானது, குடும்பத்தோடு பிணைந்தது.',
+    'Leo':        'நீங்கள் உணர்வுகளை வெளிப்படையாக வெளிப்படுத்துகிறீர்கள், அன்பையும் கவனத்தையும் விரும்புகிறீர்கள்.',
+    'Virgo':      'உங்கள் உள் உலகம் பகுப்பாய்வு மிக்கது, தூய்மையை விரும்புவது.',
+    'Libra':      'நீங்கள் நல்லிணக்கத்தை தேடுகிறீர்கள் — சண்டை உங்கள் சமநிலையை குலைக்கும்.',
+    'Scorpio':    'உங்கள் உணர்வு ஆழம் தீவிரமானது, தனிப்பட்டது, மாற்றத்தை ஏற்றுக்கொள்வது.',
+    'Sagittarius':'உங்கள் உள் உலகம் இலட்சியவாதமானது, சாகசமானது, தத்துவ சிந்தனையில் திளைப்பது.',
+    'Capricorn':  'சாதனை மூலம் உணர்வுகளை வெளிப்படுத்துகிறீர்கள் — கடமை உங்கள் வீடு.',
+    'Aquarius':   'உங்கள் உள் உலகம் பற்றற்றது, இலட்சியவாதமானது, மனிதகுலத்துடன் இணைந்தது.',
+    'Pisces':     'உங்கள் உணர்வு உலகம் எல்லையற்றது, பிறரை எளிதில் உள்வாங்குவது.',
+}
+
+NAK_DESC_TAM = {
+    'Ashwini':         'வேகமான தொடக்கங்கள், குணமளிக்கும் சக்தி, முன்னோடி ஆவி.',
+    'Bharani':         'தீவிர மாற்றம், படைப்பாற்றல், பிறருக்காக சுமை தாங்கும் குணம்.',
+    'Krittika':        'கூர்மையான அறிவு, சுத்திகரிக்கும் நெருப்பு, ஊடுருவும் தெளிவு.',
+    'Rohini':          'புலன் இன்பம், படைப்பு வளம், வலுவான பொருள் விருப்பங்கள்.',
+    'Mrigashira':      'அமைதியற்ற தேடல் — எப்போதும் உண்மை, அழகு, சரியான துணையை தேடுபவர்.',
+    'Ardra':           'புயல் மற்றும் மாற்றம் — கொந்தளிப்பு புத்துயிரையும் ஆழமான அறிவையும் கொண்டுவருகிறது.',
+    'Punarvasu':       'செழிப்பின் மீண்டும் வருகை — அதிதி தேவியின் நட்சத்திரம். நீங்கள் எப்போதும் மீண்டு எழுவீர்கள். ஸ்ரீ ராமரின் ஜன்ம நட்சத்திரம்.',
+    'Pushya':          'ஊட்டம், தர்மம், ஆன்மிக பக்தி. அனைத்திலும் மிகவும் சுபமான நட்சத்திரம்.',
+    'Ashlesha':        'மர்மகரமான பாம்பு சக்தி — கூர்மை, ஊடுருவும், மனோதத்துவ திறன்.',
+    'Magha':           'ராஜ சிம்மாசனம் — முன்னோர் சக்தி, பெருமை, இயற்கையான தலைமை.',
+    'Purva Phalguni':  'இன்பம், ஓய்வு, படைப்பாற்றல், வாழ்வின் தாரளமான அனுபவம்.',
+    'Uttara Phalguni': 'கண்ணியத்துடன் சேவை. அதிர்ஷ்டமானவர், கண்ணியமானவர்.',
+    'Hasta':           'திறமையான கைகள் — கைவேலை, குணமளித்தல், துல்லியம், புத்திசாலித்தனம்.',
+    'Chitra':          'அழகின் புத்திசாலி கட்டிடக்கலைஞர் — கலை, துல்லியம், பரிபூரணத்தை விரும்புவது.',
+    'Swati':           'சுதந்திரமானவர், சுதந்திர ஆவி, வணிக திறன் மிக்கவர், காற்றில் சுடர் போல் மாற்றியமைக்கக்கூடியவர்.',
+    'Vishakha':        'இலக்கு நோக்கி கவனம் செலுத்துபவர் — தீவிர கவனத்தால் வெற்றி.',
+    'Anuradha':        'அர்ப்பணிப்பு, விசுவாசம், சமூக திறன். ஆழமான நட்பு மற்றும் ஒழுங்கமைக்கப்பட்ட அமைப்புகள்.',
+    'Jyeshtha':        'மூத்தோர் ஞானம், பாதுகாக்கும் சக்தி, மறைந்த வலிமை.',
+    'Mula':            'வேர் ஆராய்ச்சி — எல்லாவற்றின் அடிப்படைக்கு செல்கிறது.',
+    'Purva Ashadha':   'வெல்ல முடியாத சக்தி, நீரால் சுத்திகரிப்பு, வலுவான விடாமுயற்சி.',
+    'Uttara Ashadha':  'இறுதி வெற்றி — நீதியின் மூலம் நிலையான வெற்றி.',
+    'Shravana':        'கேட்டல், கற்றல், அறிவின் மூலம் உலகை இணைத்தல்.',
+    'Dhanishtha':      'சமுதாயத்தின் மூலம் செல்வம், தாளம் மற்றும் வளம்.',
+    'Shatabhisha':     'குணமளித்தல், மர்மம், தனி ஆன்மிக சக்தி.',
+    'Purva Bhadrapada':'தீவிர மாற்றம் — மற்றப்படமான அறிவுடன் தூய்மையற்றதை எரிக்கிறது.',
+    'Uttara Bhadrapada':'ஆழம், ஞானம், முனிவரின் பொறுமை.',
+    'Revati':          'பயணத்தின் முடிவு — இரக்கம், நிறைவு, ஆன்மிக மூடல்.',
+}
+
+DASHA_EFFECTS_TAM = {
+    'Ketu':    'ஆன்மிக பற்றின்மை, கர்ம தூய்மை, மறைவான சாஸ்திரங்களில் ஆர்வம். உடல் நலனில் கவனம் தேவை.',
+    'Venus':   'பொருள் செழிப்பு, ஆடம்பரம், உறவுகள், கலை வெற்றி. மிகவும் வசதியான மகாதசை.',
+    'Sun':     'அதிகாரம், தொழில் அங்கீகாரம், அரசாங்க விவகாரங்கள், தந்தை தொடர்பான விஷயங்கள்.',
+    'Moon':    'உணர்வு அனுபவங்கள், பயணம், பொது வாழ்க்கை, தாயின் உடல்நலன்.',
+    'Mars':    'சக்தி, லட்சியம், சொத்து, நிலம், சகோதர தொடர்பான விஷயங்கள்.',
+    'Rahu':    'தீவிர லட்சியம், வெளிநாட்டு தொடர்புகள், திடீர் ஆதாயம் மற்றும் நஷ்டம். கர்ம தீவிரம்.',
+    'Jupiter': 'ஞானம், தர்மம், பிள்ளைகள், உயர்கல்வி, அதிர்ஷ்டம். மிகவும் சுபமான தசை.',
+    'Saturn':  'ஒழுக்கம், கடின உழைப்பு, கர்ம கடன் திருப்பம், மெதுவான ஆனால் நிரந்தர வெகுமதி.',
+    'Mercury': 'அறிவு, தகவல் தொடர்பு, வர்த்தகம், வணிகம், பகுப்பாய்வு வெற்றி.',
+}
+
+HOUSE_THEMES_TAM = [
+    'சுயம், ஆளுமை, ஆரோக்கியம், உடல் மற்றும் முதல் தோற்றம்',
+    'செல்வம், பேச்சு, குடும்பம், சேமிப்பு மற்றும் உணவு',
+    'தைரியம், சகோதரர், குறுகிய பயணம், தொடர்பு மற்றும் சுயமுயற்சி',
+    'வீடு, தாய், சொத்து, கல்வி, உணர்வு பாதுகாப்பு மற்றும் வாகனங்கள்',
+    'அறிவு, பிள்ளைகள், படைப்பாற்றல், முதலீடு மற்றும் முன்னோர் புண்ணியம்',
+    'எதிரிகள், கடன், நோய், அன்றாட வேலை, சேவை மற்றும் தடைகள்',
+    'திருமணம், கூட்டாண்மை, வணிக உறவுகள் மற்றும் வெளிநாட்டு தொடர்புகள்',
+    'ஆயுள், மாற்றம், பரம்பரை, மறைந்த விஷயங்கள் மற்றும் திடீர் நிகழ்வுகள்',
+    'அதிர்ஷ்டம், தந்தை, உயர்கல்வி, நீண்ட பயணம், தர்மம் மற்றும் யாத்திரை',
+    'தொழில், பொது வாழ்க்கை, தகுதி, அதிகாரம், வாழ்க்கைத்தொழில் மற்றும் அரசாங்கம்',
+    'வருமானம், ஆதாயம், மூத்த சகோதரர், சமூக வலைப்பின்னல், நம்பிக்கைகள் மற்றும் விருப்பங்கள் நிறைவேறுதல்',
+    'வெளிநாடு, ஆன்மிக விடுதலை, மறைந்த செலவு மற்றும் மோட்சம்',
+]
+
+def T(key):
+    """Get translation for current language."""
+    lang = st.session_state.get("lang", "English")
+    return TAM.get(key, key) if lang == "தமிழ்" else ENG.get(key, key)
+
+def is_tamil():
+    return st.session_state.get("lang", "English") == "தமிழ்"
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -201,29 +522,29 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
     </div>""", unsafe_allow_html=True)
 
     tabs = st.tabs([
-        "🌟 Overview", "🪐 Planets", "🏠 Houses",
-        "⏳ Dasha", "💼 Career", "💞 Relationships",
-        "⚖️ Yogas", "🧿 Remedies", "📅 Panchang", "📊 Summary"
+        T("tab_overview"), T("tab_planets"), T("tab_houses"),
+        T("tab_dasha"), T("tab_career"), T("tab_relationships"),
+        T("tab_yogas"), T("tab_remedies"), T("tab_panchang"), T("tab_summary")
     ])
 
     # ── TAB 1: Overview ───────────────────────────────────────────────────────
     with tabs[0]:
         st.markdown('<div class="metric-row">' + "".join([
-            metric(chart['lagna_tamil'], "Lagna (ascendant)"),
-            metric(chart['rasi_tamil'],  "Rasi (moon sign)"),
-            metric(chart['nakshatra'],   "Janma nakshatra"),
-            metric(f"Pada {chart['pada']}", "Nakshatra pada"),
+            metric(chart['lagna_tamil'] if is_tamil() else chart['lagna'], T("lagna_lbl")),
+            metric(chart['rasi_tamil']  if is_tamil() else chart['rasi'],  T("rasi_lbl")),
+            metric(chart['nakshatra'],   T("nakshatra_lbl")),
+            metric(f"{T('pada_lbl')} {chart['pada']}", T("pada_lbl")),
         ]) + '</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="metric-row">' + "".join([
-            metric(chart['lagna_lord'],           "Lagna lord"),
-            metric(chart['nakshatra_lord'],        "Nakshatra lord"),
-            metric(chart['lagna_element'],         "Element"),
-            metric(f"{chart['ayanamsa']}°",        "Lahiri ayanamsa"),
+            metric(T(chart['lagna_lord']),    T("lagna_lord_lbl")),
+            metric(T(chart['nakshatra_lord']), T("nak_lord_lbl")),
+            metric(chart['lagna_element'],    T("element_lbl")),
+            metric(f"{chart['ayanamsa']}°",   T("ayanamsa_lbl")),
         ]) + '</div>', unsafe_allow_html=True)
 
         # ── South Indian Rasi Chart ───────────────────────────────────────────
-        sec_title("Rasi chart — South Indian style (fixed signs)")
+        sec_title(T("sec_chart"))
         lagna_idx = chart['lagna_index']
 
         # South Indian layout: fixed sign positions (Aries=top-row-2nd cell)
@@ -255,7 +576,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             if is_center:
                 return '<td style="background:#0d1117;border:1px solid #21262d;width:25%;height:70px"></td>'
             is_lagna = (sign_idx == lagna_idx)
-            lagna_mark = '<div style="font-size:.55rem;color:#e2c887;letter-spacing:.05em">ASC ★</div>' if is_lagna else ''
+            lagna_mark = f'<div style="font-size:.55rem;color:#e2c887;letter-spacing:.05em">{T("asc_label")}</div>' if is_lagna else ''
             planets_here = sign_planets.get(sign_idx, [])
             planet_html = ""
             for pstr in planets_here:
@@ -321,40 +642,42 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
         )
         st.markdown(chart_html, unsafe_allow_html=True)
 
-        sec_title("Lagna — ascendant personality")
-        reading_text(LAGNA_DESC.get(chart['lagna'], ''))
+        sec_title(T("sec_lagna"))
+        reading_text((LAGNA_DESC_TAM if is_tamil() else LAGNA_DESC).get(chart['lagna'], ''))
 
-        sec_title(f"Rasi — {chart['rasi']} moon sign")
-        reading_text(RASI_DESC.get(chart['rasi'], ''))
+        sec_title(f"{T('sec_rasi')} — {chart['rasi_tamil'] if is_tamil() else chart['rasi']}")
+        reading_text((RASI_DESC_TAM if is_tamil() else RASI_DESC).get(chart['rasi'], ''))
 
-        sec_title(f"Janma nakshatra — {chart['nakshatra']}")
+        sec_title(f"{T('sec_nakshatra')} — {chart['nakshatra']}")
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"""
             <div class="card">
-              <div class="sec-title">Star profile</div>
+              <div class="sec-title">{T("sec_star_profile")}</div>
               <div class="reading-text">
-                <b style="color:#e2c887">Deity:</b> {chart['nakshatra_deity']}<br>
-                <b style="color:#e2c887">Symbol:</b> {chart['nakshatra_symbol']}<br>
-                <b style="color:#e2c887">Lord:</b> {chart['nakshatra_lord']}<br>
-                <b style="color:#e2c887">Quality:</b> {chart['nakshatra_quality']}<br>
-                <b style="color:#e2c887">Pada:</b> {chart['pada']}
+                <b style="color:#e2c887">{T("deity_lbl")}:</b> {chart['nakshatra_deity']}<br>
+                <b style="color:#e2c887">{T("symbol_lbl")}:</b> {chart['nakshatra_symbol']}<br>
+                <b style="color:#e2c887">{T("lord_lbl")}:</b> {T(chart['nakshatra_lord'])}<br>
+                <b style="color:#e2c887">{T("quality_lbl")}:</b> {chart['nakshatra_quality']}<br>
+                <b style="color:#e2c887">{T("pada_lbl")}:</b> {chart['pada']}
               </div>
             </div>""", unsafe_allow_html=True)
         with col2:
+            nak_desc_text = (NAK_DESC_TAM if is_tamil() else NAK_DESC).get(chart['nakshatra'], '')
             st.markdown(f"""
             <div class="card">
-              <div class="sec-title">Nakshatra meaning</div>
-              <div class="reading-text">{NAK_DESC.get(chart['nakshatra'], '')}</div>
+              <div class="sec-title">{T("sec_nak_meaning")}</div>
+              <div class="reading-text">{nak_desc_text}</div>
             </div>""", unsafe_allow_html=True)
 
         yk = chart.get('yoga_karaka', [])
         if yk:
-            info_box(f"⭐ <b>Yoga Karaka:</b> {', '.join(yk)} — the most powerful benefic planet(s) for {chart['lagna']} lagna. Their Dasha periods bring exceptional career and wealth results.")
+            yk_names = ", ".join(T(y) for y in yk)
+            info_box(f"⭐ <b>{T('yoga_karaka')}:</b> {yk_names} — {'மிகவும் சக்திவாய்ந்த கிரகங்கள். இவற்றின் தசை காலத்தில் தொழில் மற்றும் செல்வ வெற்றி உச்சமடையும்.' if is_tamil() else f'the most powerful benefic planet(s) for {chart[chr(108)+(chr(97))+(chr(103))+(chr(110))+(chr(97))]} lagna. Their Dasha periods bring exceptional career and wealth results.'}")
 
     # ── TAB 2: Planets ────────────────────────────────────────────────────────
     with tabs[1]:
-        sec_title("Navagraha placements (Lahiri sidereal)")
+        sec_title(T("sec_planets"))
         for name_p in ['Sun','Moon','Mars','Mercury','Jupiter','Venus','Saturn','Rahu','Ketu']:
             pl = p[name_p]
             sym   = pl['symbol']
@@ -363,7 +686,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             dg    = pl.get('dignity','')
             dg_cls = {'Exalted ↑':'dg-ex','Debilitated ↓':'dg-db','Own sign ★':'dg-own','Friendly +':'dg-fr'}.get(dg,'')
             dg_html = f'<span class="p-dignity {dg_cls}">{dg}</span>' if dg else ''
-            house_theme = HOUSE_THEMES[pl['house']-1]
+            house_theme = (HOUSE_THEMES_TAM if is_tamil() else HOUSE_THEMES)[pl['house']-1]
 
             from engine import PLANET_NATURE
             effect = PLANET_NATURE.get(name_p, '')
@@ -381,7 +704,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
 
     # ── TAB 3: Houses ─────────────────────────────────────────────────────────
     with tabs[2]:
-        sec_title("12 houses — whole-sign system from lagna")
+        sec_title(T("sec_houses"))
         lagna_idx = chart['lagna_index']
         for h in range(1, 13):
             sign_idx = (lagna_idx + h - 1) % 12
@@ -407,45 +730,60 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
     with tabs[3]:
         d = dasha['current']
         ad = dasha['current_antardasha']
+        d_lord_t  = T(d['lord'])
+        ad_lord_t = T(ad['lord'])
+        yrs_lbl   = T("years")
 
         st.markdown('<div class="metric-row">' + "".join([
-            metric(f"{d['lord']} Mahadasha", "Current period"),
-            metric(d['start'].strftime('%Y'), "Started"),
-            metric(d['end'].strftime('%Y'),   "Ends"),
-            metric(f"{d['years']} yrs",        "Duration"),
+            metric(f"{d_lord_t} {'மகாதசை' if is_tamil() else 'Mahadasha'}", T("curr_dasha_lbl")),
+            metric(d['start'].strftime('%Y'), T("started_lbl")),
+            metric(d['end'].strftime('%Y'),   T("ends_lbl")),
+            metric(f"{d['years']} {yrs_lbl}", T("duration_lbl")),
         ]) + '</div>', unsafe_allow_html=True)
 
+        sec_title(T("sec_dasha_curr"))
+        dasha_name_html = f"{d['symbol']} {d_lord_t} {'மகாதசை' if is_tamil() else 'Mahadasha'}"
+        dasha_text = (DASHA_EFFECTS_TAM if is_tamil() else DASHA_EFFECTS).get(d['lord'],'')
         st.markdown(f"""
         <div class="dasha-block current dasha-cur">
-          <div class="dasha-name">{d['symbol']} {d['lord']} Mahadasha</div>
+          <div class="dasha-name">{dasha_name_html}</div>
           <div class="dasha-period">{d['start'].strftime('%b %Y')} — {d['end'].strftime('%b %Y')}</div>
-          <div class="dasha-text">{DASHA_EFFECTS.get(d['lord'],'')}</div>
+          <div class="dasha-text">{dasha_text}</div>
         </div>""", unsafe_allow_html=True)
 
-        sec_title(f"Current antardasha — {ad['lord']} within {d['lord']} Mahadasha")
+        antar_title = f"{T('sec_dasha_antar')} — {ad_lord_t}"
+        sec_title(antar_title)
+        ad_text = (DASHA_EFFECTS_TAM if is_tamil() else DASHA_EFFECTS).get(ad['lord'],'')
         st.markdown(f"""
         <div class="dasha-block">
-          <div class="dasha-name" style="color:#79c0ff">{ad['symbol']} {ad['lord']} Antardasha</div>
+          <div class="dasha-name" style="color:#79c0ff">{ad['symbol']} {ad_lord_t} {'அந்தர் தசை' if is_tamil() else 'Antardasha'}</div>
           <div class="dasha-period">{ad['start'].strftime('%b %Y')} — {ad['end'].strftime('%b %Y')}</div>
-          <div class="dasha-text">{DASHA_EFFECTS.get(ad['lord'],'')}</div>
+          <div class="dasha-text">{ad_text}</div>
         </div>""", unsafe_allow_html=True)
 
-        sec_title("Full Vimshottari timeline")
+        sec_title(T("sec_dasha_full"))
         now = datetime.now()
+        now_label = 'இப்போது' if is_tamil() else 'NOW'
+        maha_label = 'மகாதசை' if is_tamil() else 'Mahadasha'
         for d_item in dasha['timeline']:
-            is_cur = d_item['start'] <= now <= d_item['end']
-            cls = "dasha-block current dasha-cur" if is_cur else "dasha-block"
-            nc  = f'<span style="font-size:.65rem;background:#2a1f0a;color:#e2c887;padding:1px 6px;border-radius:8px;margin-left:8px">NOW</span>' if is_cur else ''
-            st.markdown(f"""
-            <div class="{cls}">
-              <div class="dasha-name">{d_item['symbol']} {d_item['lord']} Mahadasha{nc}</div>
-              <div class="dasha-period">{d_item['start'].strftime('%Y')} — {d_item['end'].strftime('%Y')} · {d_item['years']} years</div>
-              <div class="dasha-text">{DASHA_EFFECTS.get(d_item['lord'],'')}</div>
-            </div>""", unsafe_allow_html=True)
+            is_cur   = d_item['start'] <= now <= d_item['end']
+            cls      = "dasha-block current dasha-cur" if is_cur else "dasha-block"
+            nc       = f'<span style="font-size:.65rem;background:#2a1f0a;color:#e2c887;padding:1px 6px;border-radius:8px;margin-left:8px">{now_label}</span>' if is_cur else ''
+            d_lord_translated = T(d_item['lord'])
+            d_eff    = (DASHA_EFFECTS_TAM if is_tamil() else DASHA_EFFECTS).get(d_item['lord'],'')
+            d_yrs    = f"{d_item['years']} {yrs_lbl}"
+            st.markdown(
+                f'<div class="{cls}">'
+                f'<div class="dasha-name">{d_item["symbol"]} {d_lord_translated} {maha_label}{nc}</div>'
+                f'<div class="dasha-period">{d_item["start"].strftime("%Y")} — {d_item["end"].strftime("%Y")} &middot; {d_yrs}</div>'
+                f'<div class="dasha-text">{d_eff}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
     # ── TAB 5: Career ─────────────────────────────────────────────────────────
     with tabs[4]:
-        sec_title("Career house analysis")
+        sec_title(T("sec_career"))
         h10_sign = SIGNS[(lagna_idx + 9) % 12]
         h10_lord = SIGN_LORDS[(lagna_idx + 9) % 12]
         h10_planets = [nm for nm in p if p[nm]['house'] == 10]
@@ -462,12 +800,12 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
         info_box(f"<b>10th house (Karma Bhava):</b> {h10_sign} · Lord: {h10_lord} in house {p[h10_lord]['house']}. "
                  f"This is the primary career indicator in your chart.")
 
-        sec_title("Best career fields for your lagna")
+        sec_title(T("sec_career_fields"))
         fields = CAREER_INDICATORS.get(chart['lagna'], ['Versatile — many fields suit this chart'])
         for f in fields:
             st.markdown(f'<div class="reading-text">• {f}</div>', unsafe_allow_html=True)
 
-        sec_title("Yoga Karaka and career wealth")
+        sec_title(T("sec_career_yk"))
         yk = chart.get('yoga_karaka', [])
         if yk:
             for y in yk:
@@ -477,7 +815,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
                              f"Current Dasha: {dasha['current']['lord']}. "
                              f"Yoga Karaka Dasha starts: {next((d_item['start'].strftime('%Y') for d_item in dasha['timeline'] if d_item['lord']==y), 'see timeline')}.")
 
-        sec_title("Wealth house lords")
+        sec_title(T("sec_wealth_lords"))
         reading_text(f"<b>2nd lord (accumulated wealth):</b> {h2_lord} in house {p[h2_lord]['house']} ({p[h2_lord]['sign']})")
         reading_text(f"<b>11th lord (income & gains):</b> {h11_lord} in house {p[h11_lord]['house']} ({p[h11_lord]['sign']})")
 
@@ -494,7 +832,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             metric(", ".join(h7_planets) if h7_planets else "Empty", "Planets in 7H"),
         ]) + '</div>', unsafe_allow_html=True)
 
-        sec_title("Marriage and partnership analysis")
+        sec_title(T("sec_marriage"))
         rahu_in_7 = p['Rahu']['house'] == 7
         mars_dosha = p['Mars']['house'] in [1,2,4,7,8,12]
 
@@ -511,18 +849,18 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
                      f"{h7_lord} sits in house {p[h7_lord]['house']} ({p[h7_lord]['sign']}), "
                      f"influencing the nature of partnerships through that house's themes.")
 
-        sec_title("Venus — the natural significator of marriage")
+        sec_title(T("sec_venus"))
         ven = p['Venus']
         reading_text(f"Venus is in <b>{ven['sign']}</b>, house <b>{ven['house']}</b>, nakshatra <b>{ven['nakshatra']}</b>. "
                      f"Dignity: {ven.get('dignity','Neutral')}. Venus placement reveals the aesthetic of relationships and the kind of partner attracted.")
 
-        sec_title("Spouse indicators")
+        sec_title(T("sec_spouse"))
         reading_text(f"7th lord <b>{h7_lord}</b> in house {p[h7_lord]['house']} ({p[h7_lord]['sign']}) "
                      f"suggests the partner will carry themes of the {p[h7_lord]['house']}th house — {HOUSE_THEMES[p[h7_lord]['house']-1]}.")
 
     # ── TAB 7: Yogas ─────────────────────────────────────────────────────────
     with tabs[6]:
-        sec_title("Yogas and doshas detected in your chart")
+        sec_title(T("sec_yogas"))
         type_cls = {
             'Raja Yoga':'yt-raja','Dhana Yoga':'yt-dhana','Dosha':'yt-dosha',
             'Positive':'yt-positive','Intelligence Yoga':'yt-intelligence','Wealth Yoga':'yt-wealth',
@@ -539,7 +877,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
 
     # ── TAB 8: Remedies ───────────────────────────────────────────────────────
     with tabs[7]:
-        sec_title("Planetary remedies for your chart")
+        sec_title(T("sec_remedies"))
         success_box("Remedies are prioritised based on: (1) your Lagna lord, (2) Nakshatra lord, (3) current Dasha lord, and (4) Yoga Karaka.")
 
         priority_planets = list(dict.fromkeys([
@@ -564,7 +902,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
               </div>
             </div>""", unsafe_allow_html=True)
 
-        sec_title("Universal daily practices")
+        sec_title(T("sec_daily"))
         for txt in [
             "Light a ghee or sesame oil lamp every morning before leaving home.",
             "Feed animals (especially crows on Saturday, cows on Sunday) to honor the Navagrahas.",
@@ -616,7 +954,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             st.warning(f"Could not load today's moon data: {e}")
 
         # ── Kalam timings ─────────────────────────────────────────────────────
-        sec_title("Today's kalam timings — avoid for new starts")
+        sec_title(T("sec_kalam"))
         try:
             kalams   = get_kalam_times(today_date, lat, lon_coord, tz_str)
             rk_s,rk_e = kalams['rahu_kalam']
@@ -633,11 +971,16 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
               <div class="metric"><div class="metric-val">{kalams['day_lord']}</div><div class="metric-lbl">Day lord</div></div>
             </div>""", unsafe_allow_html=True)
 
+            _tam = is_tamil()
             kalam_rows = [
-                ('☀️ Abhijit Muhurta',  ab_s,  ab_e,  '#56d364','#0d2010', 'Best time of day — solar noon window, universally auspicious.'),
-                ('☊ Rahu Kalam',        rk_s,  rk_e,  '#f85149','#2d1a1a', 'Avoid starting anything new. Ongoing work is fine.'),
-                ('⚰ Yamagandam',        yg_s,  yg_e,  '#f85149','#2d1a1a', 'Death time of Yama. No new ventures, travel, or money dealings.'),
-                ('♄ Gulika Kalam',      gk_s,  gk_e,  '#e3b341','#1e1600', 'Saturn\'s hour — activities repeat. Avoid loans and funeral rites.'),
+                (f'\u2600\ufe0f {T("abhijit")}',    ab_s, ab_e, '#56d364','#0d2010',
+                 '\u0b9a\u0bbf\u0bb1\u0ba8\u0bcd\u0ba4 \u0ba8\u0bc7\u0bb0\u0bae\u0bcd \u2014 \u0b9a\u0bc2\u0bb0\u0bbf\u0baf \u0ba8\u0b9f\u0bc1 \u0ba8\u0bc7\u0bb0\u0bae\u0bcd, \u0b85\u0ba9\u0bc8\u0bb5\u0bb0\u0bc1\u0b95\u0bcd\u0b95\u0bc1\u0bae\u0bcd \u0b9a\u0bc1\u0baa\u0bae\u0bbe\u0ba9\u0ba4\u0bc1.' if _tam else 'Best time of day — solar noon window, universally auspicious.'),
+                (f'\u260a {T("rahu_kalam")}',   rk_s, rk_e, '#f85149','#2d1a1a',
+                 '\u0baa\u0bc1\u0ba4\u0bbf\u0baf\u0bb5\u0bb1\u0bcd\u0bb1\u0bc8 \u0ba4\u0bca\u0b9f\u0b99\u0bcd\u0b95 \u0bb5\u0bc7\u0ba3\u0bcd\u0b9f\u0bbe\u0bae\u0bcd.' if _tam else 'Avoid starting anything new. Ongoing work is fine.'),
+                (f'\u26b0 {T("yamagandam")}',   yg_s, yg_e, '#f85149','#2d1a1a',
+                 '\u0baf\u0bae\u0ba9\u0bbf\u0ba9\u0bcd \u0ba8\u0bc7\u0bb0\u0bae\u0bcd. \u0baa\u0bc1\u0ba4\u0bbf\u0baf \u0bae\u0bc1\u0baf\u0bb1\u0bcd\u0b9a\u0bbf\u0b95\u0bb3\u0bcd, \u0baa\u0baf\u0ba3\u0bae\u0bcd, \u0baa\u0ba3 \u0bae\u0bc1\u0b9f\u0bbf\u0bb5\u0bc1\u0b95\u0bb3\u0bcd \u0bb5\u0bc7\u0ba3\u0bcd\u0b9f\u0bbe\u0bae\u0bcd.' if _tam else 'Death time of Yama. No new ventures, travel, or money dealings.'),
+                (f'\u2644 {T("gulika_kalam")}', gk_s, gk_e, '#e3b341','#1e1600',
+                 '\u0b9a\u0ba9\u0bbf\u0baf\u0bbf\u0ba9\u0bcd \u0ba8\u0bc7\u0bb0\u0bae\u0bcd \u2014 \u0b9a\u0bc6\u0baf\u0bb2\u0bcd\u0b95\u0bb3\u0bcd \u0bae\u0bc0\u0ba3\u0bcd\u0b9f\u0bc1\u0bae\u0bcd \u0ba8\u0bbf\u0b95\u0bb4\u0bc1\u0bae\u0bcd.' if _tam else "Saturn's hour — activities repeat. Avoid loans and funeral rites."),
             ]
             for label, s, e, color, bg, tip in kalam_rows:
                 st.markdown(f"""
@@ -654,7 +997,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             st.warning(f"Kalam calculation error: {e}")
 
         # ── Good windows today ────────────────────────────────────────────────
-        sec_title("Best windows today for important activities")
+        sec_title(T("sec_good_windows"))
         try:
             good = get_good_windows(today_date, lat, lon_coord, tz_str, rasi_idx, lagna_lord)
             if good:
@@ -676,7 +1019,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             st.warning(f"Good windows error: {e}")
 
         # ── 14-day weekly overview ────────────────────────────────────────────
-        sec_title("14-day lunar calendar for your Rasi")
+        sec_title(T("sec_14day"))
         try:
             overview = get_weekly_overview(rasi_idx, lat, lon_coord, tz_str)
             for day in overview:
@@ -712,7 +1055,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             st.warning(f"Weekly overview error: {e}")
 
         # ── Chandrashtama next 90 days ────────────────────────────────────────
-        sec_title("Chandrashtama days — next 90 days")
+        sec_title(T("sec_chandra"))
         st.markdown(f'<div class="info-box">Moon transits the 8th sign from your Rasi ({chart["rasi"]}) — this is your Chandrashtama sign: <b>{SIGNS[(rasi_idx+7)%12]}</b>. Avoid auspicious beginnings, major decisions, and surgeries during these ~2.5 day windows.</div>', unsafe_allow_html=True)
         try:
             with st.spinner("Calculating Chandrashtama dates..."):
@@ -750,7 +1093,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
 
     # ── TAB 10: Summary ───────────────────────────────────────────────────────
     with tabs[9]:
-        sec_title("Complete chart summary at a glance")
+        sec_title(T("sec_summary"))
         data_rows = [
             ("Lagna (ascendant)", f"{chart['lagna']} ({chart['lagna_tamil']}) · {chart['lagna_degree']}°"),
             ("Lagna lord", f"{chart['lagna_lord']} in house {p[chart['lagna_lord']]['house']}"),
@@ -770,7 +1113,7 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
             cols[0].markdown(f'<div style="font-size:.78rem;color:#8b949e;padding:.3rem 0">{k}</div>', unsafe_allow_html=True)
             cols[1].markdown(f'<div style="font-size:.82rem;color:#e2c887;padding:.3rem 0;font-weight:500">{v}</div>', unsafe_allow_html=True)
 
-        sec_title("All planetary positions")
+        sec_title(T("sec_all_planets"))
         rows = ""
         for nm in ['Sun','Moon','Mars','Mercury','Jupiter','Venus','Saturn','Rahu','Ketu']:
             pl = p[nm]
@@ -791,40 +1134,57 @@ def render_reading(chart, dasha, yogas, name, dob, tob, pob):
 
 
 # ── Main UI ────────────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="hero">
-  <div class="hero-icon">🔯</div>
-  <h1>Vedic Astrology Reading</h1>
-  <p>South Indian Jathagam · Swiss Ephemeris · Lahiri ayanamsa · No API key required</p>
-</div>""", unsafe_allow_html=True)
-
 if "chart_data" not in st.session_state:
     st.session_state.chart_data = None
+if "lang" not in st.session_state:
+    st.session_state.lang = "English"
+
+# ── Language toggle + Hero ─────────────────────────────────────────────────────
+col_hero, col_lang = st.columns([5, 1])
+with col_hero:
+    st.markdown(f"""
+    <div class="hero">
+      <div class="hero-icon">🔯</div>
+      <h1>{T("app_title")}</h1>
+      <p>{T("app_sub")}</p>
+    </div>""", unsafe_allow_html=True)
+with col_lang:
+    st.markdown("<div style='padding-top:1.25rem'></div>", unsafe_allow_html=True)
+    lang_choice = st.selectbox(
+        "🌐", ["English", "தமிழ்"],
+        index=0 if st.session_state.lang == "English" else 1,
+        label_visibility="collapsed",
+        key="lang_selector"
+    )
+    if lang_choice != st.session_state.lang:
+        st.session_state.lang = lang_choice
+        st.rerun()
 
 if st.session_state.chart_data is None:
     with st.form("birth_form"):
         c1, c2 = st.columns(2)
         with c1:
-            inp_name   = st.text_input("Full name", placeholder="e.g. Hari Vardhan")
-            inp_dob    = st.date_input("Date of birth",
+            inp_name   = st.text_input(T("full_name"), placeholder="e.g. Hari Vardhan")
+            inp_dob    = st.date_input(T("dob"),
                                        value=date(1990, 6, 15),
                                        min_value=date(1900,1,1),
                                        max_value=date.today())
-            inp_pob    = st.text_input("Place of birth", placeholder="e.g. Cuddalore, Tamil Nadu, India")
+            inp_pob    = st.text_input(T("pob"), placeholder="e.g. Cuddalore, Tamil Nadu, India")
         with c2:
-            inp_tob    = st.text_input("Time of birth (HH:MM 24h)", placeholder="e.g. 14:30  or  06:15")
-            inp_gender = st.selectbox("Gender", ["","Male","Female","Other"],
-                                      format_func=lambda x: "Select" if x=="" else x)
+            inp_tob    = st.text_input(T("tob"), placeholder="e.g. 14:30  or  06:15")
+            inp_gender = st.selectbox(T("gender"),
+                                      ["", T("male"), T("female"), T("other")],
+                                      format_func=lambda x: T("select") if x=="" else x)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.caption("Time of birth significantly improves Lagna accuracy. Use 12:00 if unknown.")
+            st.caption(T("tob_hint"))
 
-        go = st.form_submit_button("✨  Generate reading")
+        go = st.form_submit_button(T("generate"))
 
     if go:
         if not inp_name.strip():
-            st.error("Please enter your full name.")
+            st.error(T("full_name") + " — required." if not is_tamil() else "முழு பெயர் தேவை.")
         elif not inp_pob.strip():
-            st.error("Please enter your place of birth.")
+            st.error(T("pob") + " — required." if not is_tamil() else "பிறந்த இடம் தேவை.")
         else:
             tob_parsed = None
             if inp_tob.strip():
@@ -832,14 +1192,14 @@ if st.session_state.chart_data is None:
                     h, m = inp_tob.strip().split(":")
                     tob_parsed = time(int(h), int(m))
                 except Exception:
-                    st.warning("Time not recognised — using 12:00 noon.")
+                    st.warning("Time not recognised — using 12:00 noon." if not is_tamil() else "நேரம் புரியவில்லை — 12:00 மதியம் பயன்படுத்துகிறோம்.")
 
             dob_dt = datetime.combine(
                 inp_dob,
                 tob_parsed if tob_parsed else time(12, 0)
             )
 
-            with st.spinner("Casting chart with Swiss Ephemeris…"):
+            with st.spinner(T("casting")):
                 try:
                     chart  = cast_chart(dob_dt, inp_pob.strip())
                     dasha  = compute_dasha(chart, dob_dt)
@@ -852,13 +1212,13 @@ if st.session_state.chart_data is None:
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error: {e}")
-                    st.info("Tip: Try adding the country to the place of birth (e.g. 'Cuddalore, Tamil Nadu, India').")
+                    st.info("Tip: Try adding the country to the place of birth (e.g. 'Cuddalore, Tamil Nadu, India')." if not is_tamil() else "குறிப்பு: இடத்தோடு நாட்டையும் சேர்க்கவும் (எ.கா. 'Cuddalore, Tamil Nadu, India').")
 
 else:
     d = st.session_state.chart_data
     render_reading(d["chart"], d["dasha"], d["yogas"],
                    d["name"], d["dob"], d["tob"], d["pob"])
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄  New reading"):
+    if st.button(f"🔄  {T('new_reading_btn')}"):
         st.session_state.chart_data = None
         st.rerun()

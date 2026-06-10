@@ -1178,13 +1178,23 @@ if st.session_state.chart_data is None:
             st.markdown("<br>", unsafe_allow_html=True)
             st.caption(T("tob_hint"))
 
+        with st.expander("📍 " + ("இடம் கண்டுபிடிக்க முடியவில்லையா? நேரடியாக அட்சரேகை / தீர்க்கரேகை உள்ளிடவும்" if is_tamil() else "Place not found? Enter coordinates manually (optional)")):
+            cc1, cc2, cc3 = st.columns(3)
+            with cc1:
+                inp_lat = st.text_input("Latitude", placeholder="e.g. 11.7447")
+            with cc2:
+                inp_lon = st.text_input("Longitude", placeholder="e.g. 79.7689")
+            with cc3:
+                inp_tz  = st.text_input("Timezone", placeholder="e.g. Asia/Kolkata")
+            st.caption("Find coordinates at latlong.net — leave blank to use place name lookup.")
+
         go = st.form_submit_button(T("generate"))
 
     if go:
         if not inp_name.strip():
-            st.error(T("full_name") + " — required." if not is_tamil() else "முழு பெயர் தேவை.")
-        elif not inp_pob.strip():
-            st.error(T("pob") + " — required." if not is_tamil() else "பிறந்த இடம் தேவை.")
+            st.error("முழு பெயர் தேவை." if is_tamil() else "Please enter your full name.")
+        elif not inp_pob.strip() and not (inp_lat.strip() and inp_lon.strip()):
+            st.error("பிறந்த இடம் தேவை." if is_tamil() else "Please enter place of birth or coordinates.")
         else:
             tob_parsed = None
             if inp_tob.strip():
@@ -1201,18 +1211,34 @@ if st.session_state.chart_data is None:
 
             with st.spinner(T("casting")):
                 try:
-                    chart  = cast_chart(dob_dt, inp_pob.strip())
+                    # If manual coords provided, inject into cache to bypass geocoding
+                    if inp_lat.strip() and inp_lon.strip():
+                        from engine import _geo_cache
+                        manual_lat = float(inp_lat.strip())
+                        manual_lon = float(inp_lon.strip())
+                        manual_tz  = inp_tz.strip() or "Asia/Kolkata"
+                        cache_key  = inp_pob.strip().lower() or "manual"
+                        _geo_cache[cache_key] = (manual_lat, manual_lon, manual_tz, inp_pob.strip() or "Manual coordinates")
+                        pob_key = inp_pob.strip() or "manual"
+                    else:
+                        pob_key = inp_pob.strip()
+
+                    chart  = cast_chart(dob_dt, pob_key)
                     dasha  = compute_dasha(chart, dob_dt)
                     yogas  = detect_yogas(chart)
                     st.session_state.chart_data = {
                         "chart": chart, "dasha": dasha, "yogas": yogas,
                         "name": inp_name.strip(),
-                        "dob": inp_dob, "tob": tob_parsed, "pob": inp_pob.strip(),
+                        "dob": inp_dob, "tob": tob_parsed, "pob": inp_pob.strip() or "Manual coordinates",
                     }
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error: {e}")
-                    st.info("Tip: Try adding the country to the place of birth (e.g. 'Cuddalore, Tamil Nadu, India')." if not is_tamil() else "குறிப்பு: இடத்தோடு நாட்டையும் சேர்க்கவும் (எ.கா. 'Cuddalore, Tamil Nadu, India').")
+                    err_msg = str(e)
+                    if "429" in err_msg or "rate" in err_msg.lower() or "Too Many" in err_msg:
+                        st.error("⚠️ Geocoding rate limit hit (429). Please wait 30 seconds and try again, or enter coordinates manually in the expander above." if not is_tamil() else "⚠️ இடம் கண்டுபிடிக்கும் சேவை தற்காலிகமாக நிறுத்தப்பட்டது. 30 நிமிடம் காத்திருந்து மீண்டும் முயற்சிக்கவும், அல்லது அட்சரேகை/தீர்க்கரேகை நேரடியாக உள்ளிடவும்.")
+                    else:
+                        st.error(f"Error: {e}")
+                        st.info("Tip: Try adding the country (e.g. 'Cuddalore, Tamil Nadu, India'). Or use the coordinates expander above." if not is_tamil() else "குறிப்பு: இடத்தோடு நாட்டையும் சேர்க்கவும் (எ.கா. 'Cuddalore, Tamil Nadu, India').")
 
 else:
     d = st.session_state.chart_data
